@@ -1,4 +1,4 @@
-![alt tag](https://github.com/andresoviedo/google-drive-ftp-adapter/raw/master/ascii-editor.png)
+![alt tag](https://github.com/andresoviedo/ascii-editor/blob/master/ascii-editor.png?raw=true)
 
 ASCII Editor
 ============
@@ -65,4 +65,4 @@ You are free to use this program while you keep this file and the authoring comm
 Contact Information
 ===================
 
-http://www.andresoviedo.org
+http://www.andresoviedo.org 

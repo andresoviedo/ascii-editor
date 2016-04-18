@@ -1,6 +1,6 @@
 /**
  * ┌─┐┌─┐┌─┐┌─┐┌─┐   ┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐
- * |A||S||C||I||I|-->|E||d||i||t||o||r|
+ * │A││S││C││I││I│-->│E││d││i││t││o││r│
  * └─┘└─┘└─┘└─┘└─┘   └─┘└─┘└─┘└─┘└─┘└─┘
  * 
  * This is the main code for drawing the ASCII code (pixels from now on) into the HTML canvas.
