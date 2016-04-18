@@ -1,0 +1,66 @@
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<script src="jquery-1.9.1.js"></script>
+<script src="util.js"></script>
+<script src="ascii-editor.js"></script>
+<style>
+
+body {
+ 	font-family: 'Courier New';
+}
+
+button {
+  cursor: pointer;
+}
+
+button.tool {
+	font-size: 20px;
+}
+
+button.active {
+	font-weight: bold;
+}
+
+#text-widget {
+	display: none;
+	position: fixed;
+}
+
+/*#canvas-container {
+  width:800px;
+  max-width:100%;
+  max-height:600px;
+  overflow-x: scroll;
+  overflow-y: scroll;
+  border: 1px red solid;
+}*/
+
+.visible {
+  display: block !important;
+}
+
+</style>
+</head>
+<body onload="init()">
+
+<h1>UML ASCII Editor</h1>
+
+<div id="tools">
+	<button id="box-button" class="tool" title="Draw boxes">☐</button>
+	<button id="text-button" class="tool" title="Write/Edit text">A</button>
+	<button id="pencil-button" class="tool" title="Free draw">x</button>
+	<button id="import-button" class="tool" title="Import ASCII code">░</button>
+	<button id="clear-button" class="tool" title="Clear canvas">⎚</button>
+</div>
+
+<div id="text-widget">
+  <textarea id="text-input"></textarea>
+</div>
+
+<div id="canvas-container" width="800" height="600" >
+	<canvas id="ascii-canvas" style="border:1px black; cursor: crosshair;"></canvas>
+</div>
+
+</body>
+</html>
