@@ -27,22 +27,23 @@ Features already implemented
 - Canvas grid
 - Resizable canvas
 - Zoomable canvas
-- Clear canvas
 - Draw boxes
-- Tools have an associated pointer
+- Draw/Edit text
+- Clear canvas
+- Storage support to resume work
 
 
 Still to be implemented
 =======================
 
+- import / export
+- undo / redo
+- cut / copy / paste
 - draw connectors
 - draw tables
 - resize shapes / adjust connectors
-- undo / redo
-- cut / copy / paste
-- import / export
-- export options like lines mode 
 - shape / object selection
+- export options like lines mode 
 - move selection
 - auto-resizable boxes, auto-adjustable rows / lines
 - integrate ASCII library

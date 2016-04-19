@@ -10,9 +10,11 @@
  * - a grid is drawn into the canvas
  * - canvas can be zoomed
  * - boxes can be drawn
- * - tools has an associated mouse pointer
+ * - tools has an associated mouse cursor
  * - pixels integration
  * - canvas can be cleared
+ *
+ * TODO: fix text tool so its not drawn outside the bounds of the canvas
  */
 
 // Default font for drawing the ASCII pixels 
@@ -102,6 +104,82 @@ function drawLine(grid, startCoord, endCoord, drawHorizontalFirst, pixelValue) {
 		var newCoord = new Coord(xPosLine, minY), pixelContext = grid.getPixelContext(new Coord(xPosLine, minY));
 		grid.stackPixel(newCoord, pixelValue);
 	}
+}
+
+function getTextStart(grid,startCoord) {
+	// guess where the text starts
+	var startingColumn = startCoord.x;
+	for (col=startingColumn; col>=0; col--){
+		pixel = grid.getPixel(new Coord(col,startCoord.y));
+		if (isDrawChar(pixel)){
+			break;
+		}
+		previousPixelValue = pixel.getValue();
+		if (previousPixelValue == null){
+			if (col == 0){
+				break;
+			} else{
+				pixel2 = grid.getPixel(new Coord(col-1,startCoord.y));
+				previousPixelValue2 = pixel2.getValue();
+				if (previousPixelValue2 == null || isDrawChar(pixel2)) break;
+			}
+		}
+		startingColumn = col;
+	}
+	var startingRow = startCoord.y;
+	for (row=startingRow; row>=0; row--){
+		pixel = grid.getPixel(new Coord(startingColumn,row));
+		previousPixelValue = pixel.getValue();
+		if (previousPixelValue == null || isDrawChar(pixel)) break;
+		startingRow = row;
+	}
+	return new Coord(startingColumn, startingRow);	
+}
+
+function getText(grid, startCoord){
+	pixel = grid.getPixel(startCoord);
+	if (pixel == undefined) return undefined;
+	
+	pixelValue = pixel.getValue();
+	if (pixelValue == undefined || pixelValue == null) return null;
+	if (isDrawChar(pixel)) return null;
+	
+	var text = "";
+	for (row=startCoord.y; row<grid.rows; row++){
+		pixel = grid.getPixel(new Coord(startCoord.x,row));
+		nextPixelValue = pixel.getValue();
+		if (nextPixelValue == null || isDrawChar(pixel)) break;
+
+		text += "\n";
+		for (col=startCoord.x; col<grid.cols; col++){
+			pixel = grid.getPixel(new Coord(col,row));
+			if (isDrawChar(pixel)){
+				break;
+			}
+			nextPixelValue = pixel.getValue();
+			if (nextPixelValue != null){
+				text += nextPixelValue;
+				continue;
+			}
+			if (col > grid.cols-2){
+				break;
+			}
+			
+			pixel2 = grid.getPixel(new Coord(col+1,row));
+			nextPixelValue2 = pixel2.getValue();
+			if (isDrawChar(pixel2)){
+				break;
+			}
+			
+			if (nextPixelValue2 != null){
+				text += " ";
+				continue;
+			}
+		}
+		
+	}
+	if (text.startsWith("\n")) text = text.substring(1);
+	return text;
 }
 
 /**
@@ -206,34 +284,106 @@ function getPixelValueIntegrated(grid, coord) {
 	return pixelValue;
 }
 
+// --------------------------------------------------- TOOLS ------------------------------------------------------- //
+
+function CanvasPointer(canvas){
+	this.canvas = canvas;
+}
+
+CanvasPointer.prototype.canvasMouseMove = function(coord){
+	this.canvas.selectedCoord = coord;
+	this.canvas.changed = true;
+}
+
+CanvasPointer.prototype.canvasMouseLeave = function(){
+	this.canvas.selectedCoord = null;
+	this.canvas.changed = true;
+}
+
+function ClearTool(grid){
+	this.grid = grid;
+}
+
+ClearTool.prototype.click = function(){
+	this.grid.clear();
+	this.grid.commit();
+}
+
 /**
  * This is the function for drawing text
  */
 function TextTool(grid) {
-	this.class = 'BoxDrawer';
+	this.class = 'TextTool';
 	this.grid = grid;
  	this.startCoord = null;
+ 	this.currentText = null;
+ 	this.init();
 }
 
-TextTool.prototype.start = function(startCoord) {
-  $("#text-widget").css({"left":clickCoords.x,"top":clickCoords.y});
-  currentText = this.grid.getText(startCoord);
-  $("#text-input").val(currentText != null? currentText : "");
-  this.startCoord = startCoord;
+TextTool.prototype.init = function(){
+	$("#text-input").keyup(function(event) {
+		if (event.keyCode == KeyEvent.DOM_VK_ESCAPE){
+			this.close();
+		} else {
+			this.refresh();
+		}
+	}.bind(this));
+	$("#text-input").change(function() {
+		this.refresh();
+	}.bind(this));
+	$("#text-input-close").click(function() {
+		this.close();
+	}.bind(this));
+	$("#text-input-OK").click(function() {
+		this.refresh();		
+		this.grid.commit();
+		this.close();
+	}.bind(this));
 }
 
-TextTool.prototype.move = function() {
-}
+TextTool.prototype.canvasMouseDown = function(startCoord) {
 
-TextTool.prototype.end = function() {
-  $("#text-widget").hide(0, function() {
-    $("#text-widget").show(0, function() {
-      $("#text-input").focus();
+	// guess where the text exactly starts
+	this.startCoord = getTextStart(this.grid,startCoord);
+	
+	// show widget 50 pixels up 
+	$("#text-widget").css({"left":clickCoords.x,"top":Math.max(0,clickCoords.y-50)});
+	
+	// get current text
+	this.currentText = getText(this.grid,this.startCoord);
+	
+	// initialize widget
+	$("#text-input").val(this.currentText != null? this.currentText : "");
+	
+	// show widget & set focus
+	$("#text-widget").show(400, function() {
+		$("#text-input").focus();
     });
-  });
 }
 
-TextTool.prototype.pointer = function() {
+TextTool.prototype.click = function() {
+	this.close();
+}
+
+TextTool.prototype.unselect = function() {
+	this.close();
+}
+
+TextTool.prototype.refresh = function() {
+	var newValue = $("#text-input").val();
+	this.grid.resetStack();
+	if (this.currentText != null){
+		this.grid.import(this.currentText.replace(/./g," "),this.startCoord);
+	}
+	this.grid.import(newValue,this.startCoord);
+}
+
+TextTool.prototype.close = function() {
+	$("#text-input").val("");
+	$("#text-widget").hide();
+}
+
+TextTool.prototype.cursor = function() {
   return "text";
 };
 
@@ -248,11 +398,11 @@ function BoxDrawer(grid) {
 	this.endCoord = null;
 }
 
-BoxDrawer.prototype.start = function(coord) {
+BoxDrawer.prototype.canvasMouseDown = function(coord) {
 	this.startCoord = coord;
 }
 
-BoxDrawer.prototype.move = function(coord) {
+BoxDrawer.prototype.canvasMouseMove = function(coord) {
 	this.endCoord = coord;
 	
 	// check whether the user has the mouse down
@@ -266,7 +416,7 @@ BoxDrawer.prototype.move = function(coord) {
 	}
 };
 
-BoxDrawer.prototype.end = function() {
+BoxDrawer.prototype.canvasMouseUp = function() {
 	if (this.mode == 2){
 		// user has the mouse-up (normal situation)
 	} else{
@@ -277,7 +427,7 @@ BoxDrawer.prototype.end = function() {
 	this.grid.commit();
 }
 
-BoxDrawer.prototype.pointer = function() {
+BoxDrawer.prototype.cursor = function() {
 	return "crosshair";
 }
 
@@ -345,10 +495,24 @@ function Grid() {
 	this.matrix = Array(this.cols);
 	this.pixelsStack = [];
 	this.changed = true;
+	this.init();
+}
+
+/**
+ * Initialize grid and restore previous user data if available
+ */
+Grid.prototype.init = function(){
 	for (var a = 0;a < this.matrix.length;a++) {
 		this.matrix[a] = Array(this.rows);
 		for (var b = 0;b < this.matrix[a].length;b++) {
 			this.matrix[a][b] = new Pixel;
+		}
+	}
+	if(typeof(Storage) !== "undefined") {
+		previousData = localStorage.getItem("data");
+		if (previousData != null){
+			this.import(previousData, new Coord(0,0));
+			this.commit();
 		}
 	}
 }
@@ -379,7 +543,6 @@ Grid.prototype.clear = function() {
 }
 
 Grid.prototype.stackPixel = function(coord, value) {
-	// debug("Pushing pixel '"+value+"' in coord '"+coord+"' to stack...");
 	var pixel = this.getPixel(coord);
 	this.pixelsStack.push(new PixelPosition(coord, pixel));
 	pixel.tempValue = value;
@@ -420,53 +583,45 @@ Grid.prototype.import = function(text, coord) {
 	for (e = 0;e < lines.length;e++) {
 		for (var g = lines[e], l = 0;l < g.length;l++) {
 			var h = g.charAt(l);
-			-1 != boxChars1.indexOf(h) && (h = "+");
-			-1 != arrowChars1.indexOf(h) && (h = "^");
-			this.stackPixel(new Coord(l,e).add(coord), h);
+			this.stackPixel(new Coord(l,e).add(coord), h == " "? null: h);
 		}
 	}
 }
 
-Grid.prototype.getText = function(startCoord){
-	debug("startCoord:"+debug(startCoord));
-	pixel = this.getPixel(startCoord);
-	if (pixel == undefined) return undefined;
-	
-	pixelValue = pixel.getValue();
-	if (pixelValue == undefined || pixelValue == null) return null;
-	if (isDrawChar(pixelValue)) return null;
-	
-	debug("read: "+pixelValue);
-	
-	var text = "";
-	for (row=startCoord.y; row<grid.rows; row++){
-		nextPixelValue = this.getPixel(new Coord(startCoord.x,row)).getValue();
-		if (nextPixelValue == undefined || nextPixelValue == null) break;
-		if (isDrawChar(nextPixelValue)) break;
-		text += "\n";
-		for (col=startCoord.x; col<grid.cols; col++){
-			nextPixelValue = this.getPixel(grid,new Coord(col,row)).getValue();
-			if (nextPixelValue == undefined || nextPixelValue == null) break;
-			if (isDrawChar(nextPixelValue)) break;
-			text += nextPixelValue;
+Grid.prototype.export = function(){
+	var data = "";
+	for (row=0; row<this.rows; row++){
+		data += "\n";
+		for (col=0; col<this.cols; col++){
+			var pixel = this.getPixel(new Coord(col, row));
+			var pixelValue = pixel.getValue();
+			data += pixelValue == null? " " : pixelValue;
 		}
 		
 	}
-	if (text.startsWith("\n")) text = text.substring(1);
-	return text;
+	if (data.startsWith("\n")){
+		data = data.substring(1);
+	}
+	return data;
 }
 
 Grid.prototype.commit = function(b) {
 	for (var b in this.pixelsStack) {
 		var pixel = this.pixelsStack[b].pixel;
-		debug(pixel);
 		var newValue = pixel.getValue();
 		if (isDrawChar(pixel)){
 			newValue = getPixelValueIntegrated(this, this.pixelsStack[b].coord);
 		}
-		pixel.value = newValue;	
+		pixel.value = newValue == " "? null: newValue;	
 	}
 	this.resetStack();
+	
+	// save data to local storage
+	if(typeof(Storage) !== "undefined") {
+    	localStorage.setItem("data", this.export());
+	} else {
+    	// Sorry! No Web Storage support..
+	}
 }
 
 
@@ -475,6 +630,7 @@ Grid.prototype.commit = function(b) {
 function Canvas() {
 	this.class = 'Canvas';
 	this.grid = new Grid();
+	this.selectedCoord = null;
 	this.canvasHTML = document.getElementById("ascii-canvas");
 	this.canvasContext = this.canvasHTML.getContext("2d");
 	this.font = defaultFont;
@@ -482,9 +638,16 @@ function Canvas() {
 	this.cellHeight = null;
 	this.cellDescend = null;
 	this.zoom = defaultZoom;
-	this.offset = new Coord(9E3, 5100);
 	this.changed = true;
 	this.linesMode = false;
+	this.init();
+}
+
+Canvas.prototype.init = function(){
+	canvas = this;
+	$(window).resize(function() {
+		canvas.resize();
+	});
 	this.resize();
 }
 
@@ -577,6 +740,12 @@ Canvas.prototype.redraw = function() {
 			}
 		}
 	}
+	
+	// draw pixel selected
+	if (this.selectedCoord != null){
+		this.canvasContext.fillStyle = "#009900";
+		this.canvasContext.fillRect(this.selectedCoord.x*this.cellWidth,this.selectedCoord.y*this.cellHeight,this.cellWidth,this.cellHeight);
+	}
 
 	// draw pixels
 	this.canvasContext.font = defaultFont;
@@ -604,38 +773,43 @@ Canvas.prototype.redraw = function() {
 
 //------------------------------------------------- MOUSE CONTROLLER ------------------------------------------------//
 
-function ToolController(canvas) {
-	$(window).resize(function() {
-		canvas.resize();
-	});
-	$("#tools > button.tool").click(function(eventObject) {
-		debug("Clicked on "+eventObject.target.id);
-		
-		$("#text-widget").hide(0);
-		$("#tools > button.tool").removeClass("active");
-		elementId = eventObject.target.id;
-		$("#" + elementId).toggleClass("active");
-		
-		if (elementId == "box-button"){
-			canvas.tool = new BoxDrawer(canvas.grid);
-		} else if (elementId == "pencil-button"){
-			canvas.tool = new PencilDrawer(canvas.grid, "X");
-		} else if (elementId == "text-button"){
-			canvas.tool = new TextTool(canvas.grid);
-		} else if (elementId == "clear-button"){
-			canvas.grid.clear();
-		}
-		canvas.grid.commit();
-	});
-}
-
-function MouseController(canvas) {
+function MouseController(canvas, tools) {
 	this.class = 'MouseController';
 	this.canvas = canvas;
+	this.tools = tools;
+	this.selectedTool = null;
+	this.canvasPointer = new CanvasPointer(canvas);
 	this.init();
 }
 
 MouseController.prototype.init = function() {
+	var controller = this;
+	$("#tools > button.tool").click(function(eventObject) {
+	
+		// toggle active button (visual feature only)		
+		$("#tools > button.tool").removeClass("active");
+		elementId = eventObject.target.id;
+		$("#" + elementId).toggleClass("active");
+		
+		// get tool
+		var toolId = elementId.substring(0,elementId.indexOf("-"));
+		selectedTool = controller.tools[toolId];
+		
+		// unselect previous tool
+		if (controller.selectedTool != null && selectedTool != controller.selectedTool){
+			if (typeof(controller.selectedTool.unselect) == "function"){
+				controller.selectedTool.unselect();
+			}
+		}
+				
+		// link new tool
+		controller.selectedTool = selectedTool;
+		
+		// invoke tool
+		if (typeof(controller.selectedTool.click) == "function"){
+			controller.selectedTool.click();
+		}
+	});
 	
 	// bind mousewheel for zooming into the canvas
 	$(this.canvas.canvasHTML).bind("mousewheel", function(eventObject) {
@@ -648,14 +822,15 @@ MouseController.prototype.init = function() {
 	
 	// bind mouse action for handling the drawing
 	$(this.canvas.canvasHTML).mousedown(function(mouseEvent) {
-		if (this.canvas.tool == null){
-				return;
+		if (controller.selectedTool == null){
+			alert("Select tool first");
+			return;
 		}
 		
 		// these are the client coordinates
-	clickCoords = new Coord(mouseEvent.clientX, mouseEvent.clientY);
+		clickCoords = new Coord(mouseEvent.clientX, mouseEvent.clientY);
 
-	// get client relative coordinates for canvas element
+		// get client relative coordinates for canvas element
 		var canvasCoord = getCanvasCoord(this.canvas.canvasHTML,mouseEvent);
 		
 		// get coordinates relative to actual zoom
@@ -664,58 +839,76 @@ MouseController.prototype.init = function() {
 		// get pixel located at the specified coordinate
 		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.cellWidth), Math.floor(canvasCoord.y / this.canvas.cellHeight));
 		
-		// debug
-		// debug("Mouse down at "+canvasCoord+". Pixel coord "+pixelCoord+"...");
-		
 		// prepare tool to start doing its job
-	this.canvas.tool.mode = 1;
-	this.canvas.tool.startCoord = pixelCoord;
-	
-	// invoke tool to do its job
-	this.canvas.tool.start(pixelCoord);
- 
+		controller.selectedTool.mode = 1;
+		controller.selectedTool.startCoord = pixelCoord;
+		
+		// invoke tool to do its job
+		controller.selectedTool.canvasMouseDown(pixelCoord);
+	 
 	}.bind(this));
+		
 	$(this.canvas.canvasHTML).mouseup(function() {
-		if (this.canvas.tool == null){
+		if (controller.selectedTool == null){
 			return;
 		}
-		this.canvas.tool.mode = 2;
-		this.canvas.tool.end();
+		controller.selectedTool.mode = 2;
+		
+		if (typeof(controller.selectedTool.canvasMouseUp) == "function"){
+			controller.selectedTool.canvasMouseUp();
+		}
 		
 	}.bind(this));
 	
 	$(this.canvas.canvasHTML).mouseenter(function() {
-	if (this.canvas.tool == null){
-			return;
-		}
-		this.canvas.canvasHTML.style.cursor = this.canvas.tool.pointer();
-	}.bind(this));
-	
-	$(this.canvas.canvasHTML).mouseleave(function() {
-	if (this.canvas.tool == null){
-			return;
-		}
-		this.canvas.tool.mode = 3;
-		this.canvas.tool.end();
-	}.bind(this));
-	$(this.canvas.canvasHTML).mousemove(function(mouseEvent) {
-	
-			if (this.canvas.tool == null){
+		if (controller.selectedTool == null){
+				this.canvas.canvasHTML.style.cursor = "text";
 				return;
-			}
+		}
+		if (typeof(controller.selectedTool.cursor) == "function"){
+			this.canvas.canvasHTML.style.cursor = controller.selectedTool.cursor();
+		}			
+	}.bind(this));
+	
+	$(this.canvas.canvasHTML).mousemove(function(mouseEvent) {
 	
 		// get canvas relative coordinates
 		var canvasCoord = getCanvasCoord(this.canvas.canvasHTML,mouseEvent);
 		
 		canvasCoord = getZoomedCanvasCoord(canvasCoord,this.canvas.zoom);
-			
-			// get pixel located at the specified coordinate
-			var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.cellWidth), Math.floor(canvasCoord.y / this.canvas.cellHeight));
-			
-			// debug
-			// debug("Mouse move at "+canvasCoord+". Pixel coord "+pixelCoord+"...");
+		
+		// get pixel located at the specified coordinate
+		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.cellWidth), Math.floor(canvasCoord.y / this.canvas.cellHeight));
+		
+		// notify canvas tool
+		controller.canvasPointer.canvasMouseMove(pixelCoord);
 	
-			this.canvas.tool.move(pixelCoord);
+		if (controller.selectedTool == null){
+			return;
+		}
+			
+		if (typeof(controller.selectedTool.canvasMouseMove) != "function"){
+			return;
+		}
+		
+		controller.selectedTool.canvasMouseMove(pixelCoord);
+	}.bind(this));
+	
+	$(this.canvas.canvasHTML).mouseleave(function() {
+	
+		// notify canvas tool
+		controller.canvasPointer.canvasMouseLeave();
+		
+		if (controller.selectedTool == null){
+			return;
+		}
+		controller.selectedTool.mode = 3;
+		
+		if (typeof(controller.selectedTool.canvasMouseLeave) != "function"){
+			return;
+		}
+		
+		controller.selectedTool.canvasMouseLeave();
 	}.bind(this));
 };
 
@@ -745,9 +938,18 @@ function getZoomedCanvasCoord(coord,zoom){
 // ---------------------------------------------------- INIT ------------------------------------------------------- //
 
 function init(){
+	// initialize canvas
 	var canvas = new Canvas(new Grid());
-	new ToolController(canvas);
-	new MouseController(canvas);
+	
+	// initialize tools
+	var tools = {};
+	tools["box"] = new BoxDrawer(canvas.grid);
+	tools["text"] = new TextTool(canvas.grid);
+	tools["clear"] = new ClearTool(canvas.grid);
+
+	// initialize mouse controller
+	new MouseController(canvas, tools);
+	
 	canvas.animate();
 }
 
