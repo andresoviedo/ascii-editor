@@ -28,10 +28,24 @@ var defaultNumberOfCols = 200;
 
 // Basic constants 
 var leftCoord = new Coord(-1, 0), rightCoord = new Coord(1, 0), topCoord = new Coord(0, -1), bottomCoord = new Coord(0, 1);
-var boxChars1 = ["+", "‒", "–", "-", "|"];
+
+// list of characters we use for drawing boxes
+var boxChars1 = UC.BOX_CHARS;
+boxChars1.push(UC.LATIN_PLUS_SIGN);
+boxChars1.push(UC.LATIN_HYPHEN_MINUS);
+boxChars1.push(UC.LATIN_VERTICAL_LINE);
+
+// list of characters we use for drawing arrows
 var arrowChars1 = [">", "<", "^", "v"];
-var drawChars = boxChars1.concat(arrowChars1);
-var lineChars = {"-":"─","|":"│","+":"┼","":""};
+
+// Draw styles
+var drawStyles = {};
+drawStyles["0"] = {"horizontal":"-", "vertical":"|", "corner":"+", "cross":"+"};
+drawStyles["1"] = {"horizontal":UC.BOX_HORIZONTAL, "vertical":UC.BOX_VERTICAL, "corner":UC.BOX_CROSS, "cross":UC.BOX_CROSS, 
+"corner-top-left":UC.BOX_CORNER_TOP_LEFT, "corner-top-right":UC.BOX_CORNER_TOP_RIGHT, "corner-bottom-left":UC.BOX_CORNER_BOTTOM_LEFT, "corner-bottom-right":UC.BOX_CORNER_BOTTOM_RIGHT,
+"horizontal-light-up":UC.BOX_HORIZONTAL_LIGHT_UP, "horizontal-light-down":UC.BOX_HORIZONTAL_LIGHT_DOWN,
+"vertical-light-right":UC.BOX_VERTICAL_LIGHT_RIGHT, "vertical-light-left":UC.BOX_VERTICAL_LIGHT_LEFT
+};
 
 // Location where the user has made click, so we can show widgets at that point
 var clickCoords = null;
@@ -53,7 +67,7 @@ function Box(coordA, coordB) {
 /**
  * Encapsulates data for the surrounding pixels
  */
-function PixelContext(left, right, bottom, top) {
+function PixelContext(left, right, top, bottom) {
 	this.class = 'PixelContext';
 	this.left = left;
 	this.right = right;
@@ -76,10 +90,10 @@ PixelContext.prototype.toString = function() {
  * Return true if the specified pixel has a drawing character
  */
 function isDrawChar(pixel) {
-	if (pixel == undefined || pixel == null){
+	if (pixel == null || pixel == undefined){
 		return pixel;
 	}
-	return -1 != drawChars.indexOf(pixel.getValue());
+	return UC.isChar(pixel.getValue());
 }
 
 /**
@@ -87,7 +101,7 @@ function isDrawChar(pixel) {
  * For drawing boxes, the line should be drawn both ways.
  */
 function drawLine(grid, startCoord, endCoord, drawHorizontalFirst, pixelValue) {
-	debug("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
+	// debug("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
 
 	// calculate box so we know from where to where we should draw the line
 	var box = new Box(startCoord, endCoord), minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY;
@@ -103,6 +117,15 @@ function drawLine(grid, startCoord, endCoord, drawHorizontalFirst, pixelValue) {
 	for (;minY <= maxY; minY++) {
 		var newCoord = new Coord(xPosLine, minY), pixelContext = grid.getPixelContext(new Coord(xPosLine, minY));
 		grid.stackPixel(newCoord, pixelValue);
+	}
+}
+
+function modifyStyle(grid, drawStyle){
+	for (index in grid.pixelsStack){
+		pixelPosition = grid.pixelsStack[index];
+		pixel = pixelPosition.pixel;
+		pixelValue = getPixelValueIntegrated(grid,pixelPosition.coord, drawStyle);
+		pixel.tempValue = pixelValue;
 	}
 }
 
@@ -186,7 +209,7 @@ function getText(grid, startCoord){
  * Here is the logic to integrate the pixels. This function return the best drawing character 
  * so its nicely integrated into the ASCII code
  */
-function getPixelValueIntegrated(grid, coord) {
+function getPixelValueIntegrated(grid, coord, drawStyle) {
 	var pixel = grid.getPixel(coord);
 	var pixelValue = pixel.getValue();
 	
@@ -204,12 +227,14 @@ function getPixelValueIntegrated(grid, coord) {
 	
 	// handle cases when we are drawing a box
 	if (isBoxPixel){
+		if (pixelContext.left && pixelContext.right && pixelContext.bottom && pixelContext.top) {
+			return drawStyles[drawStyle]["cross"];
+		}
 		/* This handles this case: 
 	 	 *                            X - X
-	 	 *        
 	 	 */
 		if (pixelContext.left && pixelContext.right && !pixelContext.bottom && !pixelContext.top) {
-			return "-";
+			return drawStyles[drawStyle]["horizontal"];
 		}
 		/*  
 	 	 * This handles this case:	     X
@@ -217,8 +242,62 @@ function getPixelValueIntegrated(grid, coord) {
 	 	 *                               X
 	 	*/	
 		else if (!pixelContext.left && !pixelContext.right && pixelContext.bottom && pixelContext.top) {
-			return "|";
+			return drawStyles[drawStyle]["vertical"];
 		}
+		/*  
+	 	 * This handles this case:	     ┌X
+	 	 *                               X 
+	 	*/	
+		else if (!pixelContext.left && pixelContext.right && !pixelContext.top && pixelContext.bottom) {
+			cornerPixel = drawStyles[drawStyle]["corner-top-left"];
+			return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+		}
+		/*  
+	 	 * This handles this case:	     X┐
+	 	 *                                X
+	 	*/	
+		else if (pixelContext.left && !pixelContext.right && !pixelContext.top && pixelContext.bottom) {
+			cornerPixel = drawStyles[drawStyle]["corner-top-right"];
+			return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+		}
+		/*  
+	 	 * This handles this case:	     X
+	 	 *                               └X
+	 	 *                               
+	 	*/	
+		else if (!pixelContext.left && pixelContext.right && pixelContext.top && !pixelContext.bottom) {
+			cornerPixel = drawStyles[drawStyle]["corner-bottom-left"];
+			return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+		}
+		/*  
+	 	 * This handles this case:	      X
+	 	 *                               X┘ 
+	 	 *                               
+	 	*/	
+		else if (pixelContext.left && !pixelContext.right && pixelContext.top && !pixelContext.bottom) {
+			cornerPixel = drawStyles[drawStyle]["corner-bottom-right"];
+			return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+		}
+		else if (pixelContext.left && pixelContext.right && pixelContext.top && !pixelContext.bottom) {
+			pixelValue = drawStyles[drawStyle]["horizontal-light-up"];
+			return pixelValue? pixelValue : drawStyles[drawStyle]["horizontal"];
+		}
+		else if (pixelContext.left && pixelContext.right && !pixelContext.top && pixelContext.bottom) {
+			pixelValue = drawStyles[drawStyle]["horizontal-light-down"];
+			return pixelValue? pixelValue : drawStyles[drawStyle]["horizontal"];
+		}
+		else if (!pixelContext.left && pixelContext.right && pixelContext.top && pixelContext.bottom) {
+			pixelValue = drawStyles[drawStyle]["vertical-light-right"];
+			return pixelValue? pixelValue : drawStyles[drawStyle]["corner"];
+		}
+		else if (pixelContext.left && !pixelContext.right && pixelContext.top && pixelContext.bottom) {
+			pixelValue = drawStyles[drawStyle]["vertical-light-left"];
+			return pixelValue? pixelValue : drawStyles[drawStyle]["corner"];
+		}
+		else if (pixelContext.top || pixelContext.bottom) {
+			return drawStyles[drawStyle]["vertical"];
+		}
+		
 	}
 	// handle cases when we are drawing arrows
 	else if (isArrowPixel) {
@@ -409,13 +488,20 @@ BoxDrawer.prototype.canvasMouseMove = function(coord) {
 	if (this.mode == 1){
 		// reset stack so we start drawing box every time the user moves the mouse
 		this.grid.resetStack();
+		// get drawing style
+		drawStyle = $("#style-select").val();
 		// draw horizontal line first, then vertical line
 		drawLine(this.grid, this.startCoord, coord, true, '+');
 		// draw vertical line first, then horizontal line
 		drawLine(this.grid, this.startCoord, coord, false, '+');
+		// fix line style
+		modifyStyle(this.grid, drawStyle);
 	}
 };
 
+/*
+ * When the user releases the mouse, we know the second coordinate so we draw the box
+ */
 BoxDrawer.prototype.canvasMouseUp = function() {
 	if (this.mode == 2){
 		// user has the mouse-up (normal situation)
@@ -425,6 +511,13 @@ BoxDrawer.prototype.canvasMouseUp = function() {
 	}
 	// perform changes
 	this.grid.commit();
+}
+
+/**
+ * If the mouse leaves the canvas, we dont want to draw nothing
+ */
+BoxDrawer.prototype.canvasMouseLeave = function() {
+	this.grid.resetStack();
 }
 
 BoxDrawer.prototype.cursor = function() {
@@ -609,9 +702,6 @@ Grid.prototype.commit = function(b) {
 	for (var b in this.pixelsStack) {
 		var pixel = this.pixelsStack[b].pixel;
 		var newValue = pixel.getValue();
-		if (isDrawChar(pixel)){
-			newValue = getPixelValueIntegrated(this, this.pixelsStack[b].coord);
-		}
 		pixel.value = newValue == " "? null: newValue;	
 	}
 	this.resetStack();
@@ -661,14 +751,14 @@ Canvas.prototype.recalculateCellDimensions = function(){
 		debug("Cell width '"+this.cellWidth+"'");
 	}
 	if (this.cellHeight == null){
-		heightMetrics = getTextHeight(this.canvasContext, 0, 0, 100, 100);
+		heightMetrics = getTextHeight(this.canvasContext,this.font, 0, 0, 100, 100);
 		this.canvasContext.clearRect(0, 0, 100, 100);
 		this.cellHeight = heightMetrics[0];
 		this.cellDescend = heightMetrics[1];
 		if (this.cellHeight == 0) {
 			this.cellHeight = this.cellWidth*1.5;
 		}
-		debug("Cell height '"+this.cellHeight+"'");
+		debug("Cell height '"+this.cellHeight+"', cell descend '"+this.cellDescend+"'");
 	}
 }
 
@@ -754,10 +844,6 @@ Canvas.prototype.redraw = function() {
 		for (row=0; row<this.grid.rows; row++){
 			var pixel = this.grid.getPixel(new Coord(col, row));
 			var pixelValue = pixel.getValue();
-			pixelValue = getPixelValueIntegrated(this.grid,new Coord(col,row));
-			if (this.linesMode){
-				pixelValue = lineChars[pixelValue];
-			}
 			if (pixelValue != null && pixelValue != ""){
 				// for drawing a char it must be at least cellWidth in y axis
 				var canvasCoord = this.getTextLocation(new Coord(col,row));
@@ -844,7 +930,9 @@ MouseController.prototype.init = function() {
 		controller.selectedTool.startCoord = pixelCoord;
 		
 		// invoke tool to do its job
-		controller.selectedTool.canvasMouseDown(pixelCoord);
+		if (typeof(controller.selectedTool.canvasMouseDown) == "function"){
+			controller.selectedTool.canvasMouseDown(pixelCoord);
+		}
 	 
 	}.bind(this));
 		

@@ -149,14 +149,12 @@ function getTextWidth(ctx, font){
 	return width;
 }
 
-function getTextHeight(ctx, left, top, width, height) {
+function getTextHeight(ctx, font, left, top, width, height) {
 
     // Draw the text in the specified area
     ctx.save();
-    // ctx.translate(left, top + Math.round(height * 0.8));
-    ctx.font = defaultFont;
-    ctx.fillText('█',50,50);
-    // ctx.mozDrawText('gM'); // This seems like tall text...  Doesn't it?
+    ctx.font = font;
+    ctx.fillText('█',width/2,height/2);
     ctx.restore();
 
     // Get the pixel data from the canvas
@@ -179,9 +177,9 @@ function getTextHeight(ctx, left, top, width, height) {
     
     var cellDescend = 0;
     if (last){
-    	cellDescend = last - 50;
-    } 
-
+    	cellDescend = last - height/2;
+    }
+    
     // Find the first line with a non-white pixel
     while(r) {
         r--;
@@ -193,11 +191,40 @@ function getTextHeight(ctx, left, top, width, height) {
         }
 
         // If we've got it then return the height
-        if(first != r) return [last - first,cellDescend];
+        if(first != r) break;
+    }
+    
+    // debug
+    if (debug=="true"){
+	    ctx.save();
+	    ctx.font = font;
+	    ctx.fillStyle = "#000000";
+	    ctx.fillRect(0,0,width,height);
+	    ctx.fillStyle = "#ffffff";
+	    ctx.fillText('█',width/2,height/2);
+	    ctx.strokeStyle = "#00ff00";
+	    ctx.beginPath();
+		ctx.moveTo(0,first);
+		ctx.lineTo(width, first);
+		ctx.stroke();
+		ctx.beginPath();
+		ctx.moveTo(0,height/2);
+		ctx.lineTo(width, height/2);
+		ctx.stroke();
+		ctx.beginPath();
+		ctx.moveTo(0,last);
+		ctx.lineTo(width, last);
+		ctx.stroke();
+		ctx.restore();
+	}
+    
+    
+    if  (first != r){
+    	return [last - first,cellDescend];
     }
 
     // We screwed something up...  What do you expect from free code?
-    return [0,cellDescend];
+    return [0,0];
 }
 
 function drawBorder(canvasContext, width, height){

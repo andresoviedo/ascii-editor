@@ -16,7 +16,7 @@ Try it!
 * http://www.andresoviedo.org/ascii-editor
 
 
-News (18/04/2016)
+News (20/04/2016)
 =================
 
 - Working on it...
@@ -26,8 +26,7 @@ Features already implemented
 ============================
 
 - HTML canvas technology
-- JavaScript technology
-- JQuery framework
+- JavaScript technology. JQuery framework
 - Object oriented design
 - Mouse controller
 - Canvas grid
@@ -37,21 +36,20 @@ Features already implemented
 - Draw/Edit text
 - Clear canvas
 - Storage support to resume work
+- Select different draw styles
 
 
 Still to be implemented
 =======================
 
-- import / export
 - undo / redo
+- select object / move object
+- resize object
+- auto-resizable boxes based on text length?
+- import / export
 - cut / copy / paste
-- draw connectors
-- draw tables
-- resize shapes / adjust connectors
-- shape / object selection
-- export options like lines mode 
-- move selection
-- auto-resizable boxes, auto-adjustable rows / lines
+- implement connectors
+- implement tables
 - integrate ASCII library
 - many more...
 
