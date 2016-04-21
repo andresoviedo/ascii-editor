@@ -159,6 +159,21 @@ function getTextStart(grid,startCoord) {
 	return new Coord(startingColumn, startingRow);	
 }
 
+/*
+ * TODO: implement trim function so we export just the necessary text
+ */
+/*function trimText(text){
+	lines = text.split("\n");
+	ret = "";
+	for (e = 0;e < lines.length;e++) {
+		ret += "\n";
+		for (var g = lines[e], l = 0;l < g.length;l++) {
+			var h = g.charAt(l);
+			ret += h;
+		}
+	}
+}*/
+
 function getText(grid, startCoord){
 	pixel = grid.getPixel(startCoord);
 	if (pixel == undefined) return undefined;
@@ -365,16 +380,82 @@ function getPixelValueIntegrated(grid, coord, drawStyle) {
 
 // --------------------------------------------------- TOOLS ------------------------------------------------------- //
 
-function CanvasPointer(canvas){
+/**
+ * This tool handles the cursor movement (arrow keys).
+ * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
+ */ 
+function CanvasTool(canvas){
 	this.canvas = canvas;
 }
 
-CanvasPointer.prototype.canvasMouseMove = function(coord){
+CanvasTool.prototype.canvasMouseDown = function(coord){
+	this.canvas.selectedCell = coord;
+	this.canvas.changed = true;
+}
+
+CanvasTool.prototype.canvasMouseMove = function(coord){
 	this.canvas.selectedCoord = coord;
 	this.canvas.changed = true;
 }
 
-CanvasPointer.prototype.canvasMouseLeave = function(){
+CanvasTool.prototype.keyDown = function(eventObject){
+	if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+		eventObject.preventDefault();
+	}
+}
+
+CanvasTool.prototype.keyPress = function(eventObject){
+	if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+		eventObject.preventDefault();
+	}
+}
+
+CanvasTool.prototype.keyUp = function(eventObject){
+	if (eventObject.keyCode >= 112 && eventObject.keyCode <= 145){
+		return;
+	}
+	if (this.canvas.selectedCell == null){
+		eventObject.preventDefault();
+		return;
+	}
+	if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+		if (this.canvas.grid.getPixel(this.canvas.selectedCell.add(leftCoord)) != undefined){
+			this.canvas.grid.import(" ",this.canvas.selectedCell.add(leftCoord));
+			this.canvas.selectCell(this.canvas.selectedCell.add(leftCoord));
+		}
+  	}
+  	else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
+  		// get current text
+		currentText = getText(this.canvas.grid,this.canvas.selectedCell);
+		if (currentText == null){
+			return;
+		}
+		currentText = currentText.substring(1)+" ";
+		this.canvas.grid.import(currentText,this.canvas.selectedCell);
+  	}
+  	else if (eventObject.keyCode == KeyEvent.DOM_VK_LEFT){
+  		this.canvas.selectCell(this.canvas.selectedCell.add(leftCoord));
+  	}
+  	else if (eventObject.keyCode == KeyEvent.DOM_VK_RIGHT){
+  		this.canvas.selectCell(this.canvas.selectedCell.add(rightCoord));
+  	}
+  	else if (eventObject.keyCode == KeyEvent.DOM_VK_UP){
+  		this.canvas.selectCell(this.canvas.selectedCell.add(topCoord));
+  	}
+  	else if (eventObject.keyCode == KeyEvent.DOM_VK_DOWN){
+  		this.canvas.selectCell(this.canvas.selectedCell.add(bottomCoord));
+  	}
+  	else{
+  		if (this.canvas.grid.getPixel(this.canvas.selectedCell.add(rightCoord)) != undefined){
+  			this.canvas.grid.import(String.fromCharCode(eventObject.which),this.canvas.selectedCell);
+ 			this.canvas.selectedCell = this.canvas.selectedCell.add(rightCoord);
+ 		}
+  	}
+  	this.canvas.grid.commit();
+    eventObject.preventDefault();
+}
+
+CanvasTool.prototype.canvasMouseLeave = function(){
 	this.canvas.selectedCoord = null;
 	this.canvas.changed = true;
 }
@@ -406,6 +487,9 @@ TextTool.prototype.init = function(){
 		} else {
 			this.refresh();
 		}
+	}.bind(this));
+	$("#text-input").keypress(function(eventObject) {
+		this.refresh();
 	}.bind(this));
 	$("#text-input").change(function() {
 		this.refresh();
@@ -522,6 +606,37 @@ BoxDrawer.prototype.canvasMouseLeave = function() {
 
 BoxDrawer.prototype.cursor = function() {
 	return "crosshair";
+}
+
+/**
+ * This tool allows exporting the grid text so user can copy/paste from there
+ */
+function ExportTool(canvas){
+	this.canvas = canvas;
+	this.init();
+}
+
+ExportTool.prototype.init = function(){
+	$("#dialog-widget").hide();
+	$("#dialog-widget-close").click(function() {
+		this.close();
+	}.bind(this));
+}
+
+ExportTool.prototype.click = function(){
+			debug("clicking");
+    $("#dialog-textarea").val(this.canvas.grid.export());
+    $("#dialog-widget").show();
+    $("#dialog-textarea").focus(function(){
+		var $this = $(this);
+    	$this.select();
+	});
+    
+}
+
+ExportTool.prototype.close = function() {
+	$("#dialog-textarea").val("");
+	$("#dialog-widget").hide();
 }
 
 
@@ -670,13 +785,16 @@ Grid.prototype.getPixelContext = function(coord) {
 	return new PixelContext(left, right, top, bottom);
 };
 
-
+/**
+ * Imports the specified text into the specified coordinates. The text can be multiline.
+ * All the whitespace characters will be replaced for nulls and it means we want to delete the pixel
+ */
 Grid.prototype.import = function(text, coord) {
 	lines = text.split("\n");
 	for (e = 0;e < lines.length;e++) {
 		for (var g = lines[e], l = 0;l < g.length;l++) {
 			var h = g.charAt(l);
-			this.stackPixel(new Coord(l,e).add(coord), h == " "? null: h);
+			this.stackPixel(new Coord(l,e).add(coord), h);
 		}
 	}
 }
@@ -702,7 +820,7 @@ Grid.prototype.commit = function(b) {
 	for (var b in this.pixelsStack) {
 		var pixel = this.pixelsStack[b].pixel;
 		var newValue = pixel.getValue();
-		pixel.value = newValue == " "? null: newValue;	
+		pixel.value = newValue == " "? null: newValue;
 	}
 	this.resetStack();
 	
@@ -721,6 +839,8 @@ function Canvas() {
 	this.class = 'Canvas';
 	this.grid = new Grid();
 	this.selectedCoord = null;
+	this.selectedCell = null;
+	this.drawSelectedCell = false;
 	this.canvasHTML = document.getElementById("ascii-canvas");
 	this.canvasContext = this.canvasHTML.getContext("2d");
 	this.font = defaultFont;
@@ -737,8 +857,26 @@ Canvas.prototype.init = function(){
 	canvas = this;
 	$(window).resize(function() {
 		canvas.resize();
+		$("#canvas-container").width(this.canvas.canvasHTML.width);
 	});
 	this.resize();
+}
+
+Canvas.prototype.hasChanged = function(){
+	if (this.changed) return true;
+	if (this.cursorChanged()) return true;
+	return false;
+}
+
+/**
+ * implementation of intermitent cursor
+ */
+Canvas.prototype.cursorChanged = function(){
+	if (this.selectedCell == null) return false;
+	var shouldDraw = new Date().getMilliseconds() % 1000 < 500;
+	var changed = shouldDraw != this.drawSelectedCell; 
+	this.drawSelectedCell = shouldDraw;
+	return changed;
 }
 
 Canvas.prototype.getTextLocation = function(coord){
@@ -770,9 +908,15 @@ Canvas.prototype.resize = function (){
 	debug("New canvas size '"+this.canvasHTML.width+"/"+this.canvasHTML.height+"'");	
 }
 
+Canvas.prototype.selectCell = function(coord){
+	if (this.grid.getPixel(coord) != undefined){
+  		this.selectedCell = coord;
+  	}
+}
+
 Canvas.prototype.animate = function() {
-	if (this.changed || this.grid.changed) {
-		this.resize(); this.redraw();
+	if (this.hasChanged() || this.grid.changed) {
+		this.redraw();
 		this.changed = false, this.grid.changed = false;
 	}
 	var canvas = this;
@@ -783,7 +927,7 @@ Canvas.prototype.animate = function() {
 
 Canvas.prototype.redraw = function() {
 
-	// debug("Redrawing canvas... zoom '"+this.zoom+"'");
+	// debug("Redrawing canvas... zoom '"+this.zoom+"' drawCursor '"+this.drawSelectedCell+"'");
 	
 	this.canvasContext.setTransform(1, 0, 0, 1, 0, 0);
 	this.canvasContext.scale(this.zoom, this.zoom);
@@ -792,7 +936,7 @@ Canvas.prototype.redraw = function() {
 	this.canvasContext.clearRect(0, 0, this.canvasHTML.width, this.canvasHTML.height);
 	
 	// Draw border
-	drawBorder(this.canvasContext,this.canvasHTML.width, this.canvasHTML.height);
+	// drawBorder(this.canvasContext,this.canvasHTML.width, this.canvasHTML.height);
 
 	// debug
 	// debug("Drawing grid with font '"+this.font+"' & size '"+this.cellWidth+"/"+this.cellHeight+"'...");
@@ -836,6 +980,13 @@ Canvas.prototype.redraw = function() {
 		this.canvasContext.fillStyle = "#009900";
 		this.canvasContext.fillRect(this.selectedCoord.x*this.cellWidth,this.selectedCoord.y*this.cellHeight,this.cellWidth,this.cellHeight);
 	}
+	
+	// draw pixel selected
+	if (this.selectedCell != null && this.drawSelectedCell){
+		this.canvasContext.fillStyle = "#009900";
+		var canvasCoord = this.getTextLocation(new Coord(this.selectedCell.x,this.selectedCell.y));
+		this.canvasContext.fillText("▏",canvasCoord.x,canvasCoord.y);
+	}
 
 	// draw pixels
 	this.canvasContext.font = defaultFont;
@@ -863,52 +1014,53 @@ function MouseController(canvas, tools) {
 	this.class = 'MouseController';
 	this.canvas = canvas;
 	this.tools = tools;
-	this.selectedTool = null;
-	this.canvasPointer = new CanvasPointer(canvas);
+	this.selectedTool = tools["select"];
 	this.init();
+	this.setActiveElement("select-button");
 }
 
 MouseController.prototype.init = function() {
-	var controller = this;
 	$("#tools > button.tool").click(function(eventObject) {
 	
-		// toggle active button (visual feature only)		
-		$("#tools > button.tool").removeClass("active");
+		// get id of clicked button
 		elementId = eventObject.target.id;
-		$("#" + elementId).toggleClass("active");
+		
+		// visual effect: set active button
+		this.setActiveElement(elementId);
 		
 		// get tool
 		var toolId = elementId.substring(0,elementId.indexOf("-"));
-		selectedTool = controller.tools[toolId];
+		selectedTool = this.tools[toolId];
 		
 		// unselect previous tool
-		if (controller.selectedTool != null && selectedTool != controller.selectedTool){
-			if (typeof(controller.selectedTool.unselect) == "function"){
-				controller.selectedTool.unselect();
+		if (this.selectedTool != null && selectedTool != this.selectedTool){
+			if (typeof(this.selectedTool.unselect) == "function"){
+				this.selectedTool.unselect();
 			}
 		}
 				
 		// link new tool
-		controller.selectedTool = selectedTool;
+		this.selectedTool = selectedTool;
 		
 		// invoke tool
-		if (typeof(controller.selectedTool.click) == "function"){
-			controller.selectedTool.click();
+		if (typeof(this.selectedTool.click) == "function"){
+			this.selectedTool.click();
 		}
-	});
+	}.bind(this));
 	
 	// bind mousewheel for zooming into the canvas
 	$(this.canvas.canvasHTML).bind("mousewheel", function(eventObject) {
 		var newZoom = this.canvas.zoom * (eventObject.originalEvent.wheelDelta > 0 ? 1.1 : 0.9);
 		newZoom = Math.max(Math.min(newZoom, 4), 1);
 		this.canvas.zoom = newZoom;
-		this.canvas.changed = true;
+		this.canvas.resize();
+		$("#canvas-container").width(this.canvas.canvasHTML.width);
 		return false;
 	}.bind(this));
 	
 	// bind mouse action for handling the drawing
 	$(this.canvas.canvasHTML).mousedown(function(mouseEvent) {
-		if (controller.selectedTool == null){
+		if (this.selectedTool == null){
 			alert("Select tool first");
 			return;
 		}
@@ -926,35 +1078,38 @@ MouseController.prototype.init = function() {
 		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.cellWidth), Math.floor(canvasCoord.y / this.canvas.cellHeight));
 		
 		// prepare tool to start doing its job
-		controller.selectedTool.mode = 1;
-		controller.selectedTool.startCoord = pixelCoord;
+		this.selectedTool.mode = 1;
+		this.selectedTool.startCoord = pixelCoord;
 		
 		// invoke tool to do its job
-		if (typeof(controller.selectedTool.canvasMouseDown) == "function"){
-			controller.selectedTool.canvasMouseDown(pixelCoord);
+		if (typeof(this.selectedTool.canvasMouseDown) == "function"){
+			this.selectedTool.canvasMouseDown(pixelCoord);
 		}
 	 
 	}.bind(this));
 		
 	$(this.canvas.canvasHTML).mouseup(function() {
-		if (controller.selectedTool == null){
+		if (this.selectedTool == null){
 			return;
 		}
-		controller.selectedTool.mode = 2;
+		this.selectedTool.mode = 2;
 		
-		if (typeof(controller.selectedTool.canvasMouseUp) == "function"){
-			controller.selectedTool.canvasMouseUp();
+		if (typeof(this.selectedTool.canvasMouseUp) == "function"){
+			this.selectedTool.canvasMouseUp();
 		}
 		
 	}.bind(this));
 	
 	$(this.canvas.canvasHTML).mouseenter(function() {
-		if (controller.selectedTool == null){
+		if (this.selectedTool == null){
 				this.canvas.canvasHTML.style.cursor = "text";
 				return;
 		}
-		if (typeof(controller.selectedTool.cursor) == "function"){
-			this.canvas.canvasHTML.style.cursor = controller.selectedTool.cursor();
+		if (typeof(this.selectedTool.cursor) == "function"){
+			this.canvas.canvasHTML.style.cursor = this.selectedTool.cursor();
+		}
+		if (typeof(this.selectedTool.mouseEnter) == "function"){
+			this.selectedTool.mouseEnter();
 		}			
 	}.bind(this));
 	
@@ -967,38 +1122,69 @@ MouseController.prototype.init = function() {
 		
 		// get pixel located at the specified coordinate
 		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.cellWidth), Math.floor(canvasCoord.y / this.canvas.cellHeight));
-		
-		// notify canvas tool
-		controller.canvasPointer.canvasMouseMove(pixelCoord);
 	
-		if (controller.selectedTool == null){
+		if (this.selectedTool == null){
 			return;
 		}
 			
-		if (typeof(controller.selectedTool.canvasMouseMove) != "function"){
+		if (typeof(this.selectedTool.canvasMouseMove) != "function"){
 			return;
 		}
 		
-		controller.selectedTool.canvasMouseMove(pixelCoord);
+		this.selectedTool.canvasMouseMove(pixelCoord);
 	}.bind(this));
 	
 	$(this.canvas.canvasHTML).mouseleave(function() {
 	
-		// notify canvas tool
-		controller.canvasPointer.canvasMouseLeave();
-		
-		if (controller.selectedTool == null){
+		if (this.selectedTool == null){
 			return;
 		}
-		controller.selectedTool.mode = 3;
+		this.selectedTool.mode = 3;
 		
-		if (typeof(controller.selectedTool.canvasMouseLeave) != "function"){
+		if (typeof(this.selectedTool.canvasMouseLeave) != "function"){
 			return;
 		}
 		
-		controller.selectedTool.canvasMouseLeave();
+		this.selectedTool.canvasMouseLeave();
+	}.bind(this));
+	
+	$(window).keydown(function(eventObject) {
+		if (this.selectedTool == null){
+			return;
+		}
+		if (typeof(this.selectedTool.keyDown) != "function"){
+			return;
+		}
+		this.selectedTool.keyDown(eventObject);
+	}.bind(this));
+	
+	$(document).keypress(function(eventObject) {
+		debug("doc.keypress");
+		if (this.selectedTool == null){
+			return;
+		}
+		if (typeof(this.selectedTool.keyPress) != "function"){
+			return;
+		}
+		this.selectedTool.keyPress(eventObject);
+	});
+	
+	$(window).keyup(function(eventObject) {
+		if (this.selectedTool == null){
+			return;
+		}
+		if (typeof(this.selectedTool.keyUp) != "function"){
+			return;
+		}
+		this.selectedTool.keyUp(eventObject);
 	}.bind(this));
 };
+
+MouseController.prototype.setActiveElement = function(elementId){
+	// toggle active button (visual feature only)		
+	$("#tools > button.tool").removeClass("active");
+	$("#" + elementId).toggleClass("active");
+}
 
 function getCanvasCoord(canvas,mouseEvent){
 	var x;
@@ -1031,12 +1217,17 @@ function init(){
 	
 	// initialize tools
 	var tools = {};
+	tools["select"] = new CanvasTool(canvas);
 	tools["box"] = new BoxDrawer(canvas.grid);
 	tools["text"] = new TextTool(canvas.grid);
 	tools["clear"] = new ClearTool(canvas.grid);
+	tools["export"] = new ExportTool(canvas);
 
 	// initialize mouse controller
 	new MouseController(canvas, tools);
+	
+	// visual only: adapt canvas container
+	$("#canvas-container").width(canvas.canvasHTML.width);
 	
 	canvas.animate();
 }

@@ -1,7 +1,9 @@
 <html>
 <head>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-<script src="jquery-1.9.1.js"></script>
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+<script src="https://code.jquery.com/jquery-1.12.3.min.js"></script>
+<script src="https://code.jquery.com/ui/1.11.4/jquery-ui.min.js"></script>
 <script src="util.js"></script>
 <script src="unicode-chars.js"></script>
 <script src="ascii-editor.js"></script>
@@ -26,6 +28,39 @@ button.active {
 #text-widget {
 	display: none;
 	position: fixed;
+}
+
+#dialog-widget {
+	display: none;
+	position: fixed;
+	left: 100px;
+	top: 100px;
+	width: 640px;
+	height:480px;
+}
+
+#dialog-widget textarea {
+	white-space: pre;
+  	word-wrap: normal;
+  	overflow-x: scroll;
+	width:100%;
+	height:100%;
+	font-family: 'Courier New'; !important
+}
+
+#chars {
+	border:1px;
+	height:50px;
+	width:100px;
+	max-height:50px;
+	overflow-y: scroll;
+	letter-spacing: 2px;
+	line-height: 120%;
+}
+
+#canvas-container {
+	width:auto;
+	border-style: inset;
 }
 
 /*#canvas-container {
@@ -59,8 +94,11 @@ button.active {
 		<!-- <option value="2">Term 2  (┏━)</option> -->
 		<!-- <option value="4">Term 4  (╔═)</option> -->
 	</select>
+	<button id="select-button" class="tool" title="Select">↖</button>
+	<button id="export-button" class="tool" title="Export">⎘</button>
+	
 </div>
-
+<!-- div id="chars" class="tool">─━│┃┄┅┆┇┈┉┊┋┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┝┞┟┠┡┢┣┤┥┦┧┨┩┪┫┬┭┮┯┰┱┲┳┴┵┶┷┸┹┺┻┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋╌╍╎╏═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬╭╮╯╰╱╲╳╴╵╶╷╸╹╺╻╼╽╾╿</div -->
 <div id="text-widget">
   <textarea id="text-input"></textarea>
   <button id="text-input-close">Close</button>
@@ -69,6 +107,11 @@ button.active {
 
 <div id="canvas-container" width="800" height="600" >
 	<canvas id="ascii-canvas" style="border:1px black; cursor: crosshair;"></canvas>
+</div>
+
+<div id="dialog-widget" title="Dialog">
+  <textarea id="dialog-textarea"></textarea>
+  <button id="dialog-widget-close">Close</button>
 </div>
 
 </body>

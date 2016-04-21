@@ -16,7 +16,7 @@ Try it!
 * http://www.andresoviedo.org/ascii-editor
 
 
-News (20/04/2016)
+News (21/04/2016)
 =================
 
 - Working on it...
@@ -33,20 +33,26 @@ Features already implemented
 - Resizable canvas
 - Zoomable canvas
 - Draw boxes
-- Draw/Edit text
+- Draw/Edit text (2 ways: online & using input text widget)
 - Clear canvas
 - Storage support to resume work
 - Select different draw styles
+- Blinking cursor
+- Arrow keys handle the cursor
+- Export ASCII
 
 
 Still to be implemented
 =======================
 
+- refactor tools to implement decorator pattern
+- implement chars library
+- trim export (remove unnecessary lines, columns)
 - undo / redo
 - select object / move object
 - resize object
 - auto-resizable boxes based on text length?
-- import / export
+- import
 - cut / copy / paste
 - implement connectors
 - implement tables
@@ -58,6 +64,7 @@ Alternatives
 ============
 
 * ascii-flow: http://asciiflow.com/
+* sixteencolors: http://draw.sixteencolors.net
 * ascii-tables: https://ozh.github.io/ascii-tables/
 
 
