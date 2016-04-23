@@ -2,7 +2,7 @@
  * ┌─┐┌─┐┌─┐┌─┐┌─┐   ┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐
  * │A││S││C││I││I│-->│E││d││i││t││o││r│
  * └─┘└─┘└─┘└─┘└─┘   └─┘└─┘└─┘└─┘└─┘└─┘
- * 
+ *
  * This is the main code for drawing the ASCII code (pixels from now on) into the HTML canvas.
  * Basically there is a Canvas object holding a Grid object holding of matrix of Pixels.
  *
@@ -17,16 +17,16 @@
  * TODO: fix text tool so its not drawn outside the bounds of the canvas
  */
 
-// Default font for drawing the ASCII pixels 
+// Default font for drawing the ASCII pixels
 var defaultFont = "10px Courier New";
-// Default canvas zoom. Canvas can be zoomed from 1x (not zoomed) to 4x (zoomed) 
+// Default canvas zoom. Canvas can be zoomed from 1x (not zoomed) to 4x (zoomed)
 var defaultZoom = 1;
-// Number of rows for the grid	
+// Number of rows for the grid
 var defaultNumberOfRows = 100;
 // Number of cols for the grid
 var defaultNumberOfCols = 200;
 
-// Basic constants 
+// Basic constants
 var leftCoord = new Coord(-1, 0), rightCoord = new Coord(1, 0), topCoord = new Coord(0, -1), bottomCoord = new Coord(0, 1);
 
 // list of characters we use for drawing boxes
@@ -41,7 +41,7 @@ var arrowChars1 = [">", "<", "^", "v"];
 // Draw styles
 var drawStyles = {};
 drawStyles["0"] = {"horizontal":"-", "vertical":"|", "corner":"+", "cross":"+"};
-drawStyles["1"] = {"horizontal":UC.BOX_HORIZONTAL, "vertical":UC.BOX_VERTICAL, "corner":UC.BOX_CROSS, "cross":UC.BOX_CROSS, 
+drawStyles["1"] = {"horizontal":UC.BOX_HORIZONTAL, "vertical":UC.BOX_VERTICAL, "corner":UC.BOX_CROSS, "cross":UC.BOX_CROSS,
 "corner-top-left":UC.BOX_CORNER_TOP_LEFT, "corner-top-right":UC.BOX_CORNER_TOP_RIGHT, "corner-bottom-left":UC.BOX_CORNER_BOTTOM_LEFT, "corner-bottom-right":UC.BOX_CORNER_BOTTOM_RIGHT,
 "horizontal-light-up":UC.BOX_HORIZONTAL_LIGHT_UP, "horizontal-light-down":UC.BOX_HORIZONTAL_LIGHT_DOWN,
 "vertical-light-right":UC.BOX_VERTICAL_LIGHT_RIGHT, "vertical-light-left":UC.BOX_VERTICAL_LIGHT_LEFT
@@ -51,613 +51,27 @@ drawStyles["1"] = {"horizontal":UC.BOX_HORIZONTAL, "vertical":UC.BOX_VERTICAL, "
 var clickCoords = null;
 
 
-//--------------------------------------------- DRAW METHODS --------------------------------------------------------//
+//------------------------------------------------- GRID CLASSES ----------------------------------------------------//
+
+//-------------------------------------------------- COORD CLASS  ---------------------------------------------------//
 
 /**
- * Calculates the mins and max given 2 coordinates
- */
-function Box(coordA, coordB) {
-	this.class = 'Box';
-	this.minX = Math.min(coordA.x, coordB.x);
-	this.minY = Math.min(coordA.y, coordB.y);
-	this.maxX = Math.max(coordA.x, coordB.x);
-	this.maxY = Math.max(coordA.y, coordB.y);
-}
-
-/**
- * Encapsulates data for the surrounding pixels
- */
-function PixelContext(left, right, top, bottom) {
-	this.class = 'PixelContext';
-	this.left = left;
-	this.right = right;
-	this.bottom = bottom;
-	this.top = top;
-}
-
-/**
- * Return the number of surrounding pixels
- */
-PixelContext.prototype.getLength = function() {
-	return this.left + this.right + this.bottom + this.top;
-}
-
-PixelContext.prototype.toString = function() {
-		return "PixelContext["+this.left+","+this.right+","+this.bottom+","+this.top+"]";
-}
-
-/**
- * Return true if the specified pixel has a drawing character
- */
-function isDrawChar(pixel) {
-	if (pixel == null || pixel == undefined){
-		return pixel;
-	}
-	return UC.isChar(pixel.getValue());
-}
-
-/**
- * This functions draws a line of pixels from startCoord to endCoord. The line can be drawn 2 ways: either first horizontal line of first vertical line.
- * For drawing boxes, the line should be drawn both ways.
- */
-function drawLine(grid, startCoord, endCoord, drawHorizontalFirst, pixelValue) {
-	// debug("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
-
-	// calculate box so we know from where to where we should draw the line
-	var box = new Box(startCoord, endCoord), minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY;
-	
-	// calculate where to draw the horizontal line
-	var yPosHorizontalLine = drawHorizontalFirst ? startCoord.y : endCoord.y
-	for (;minX <= maxX; minX++) {
-		var newCoord = new Coord(minX, yPosHorizontalLine), pixelContext = grid.getPixelContext(new Coord(minX, yPosHorizontalLine));
-		grid.stackPixel(newCoord, pixelValue);
-	}
-	// calculate where to draw the vertical line
-	var xPosLine = drawHorizontalFirst ? endCoord.x : startCoord.x;
-	for (;minY <= maxY; minY++) {
-		var newCoord = new Coord(xPosLine, minY), pixelContext = grid.getPixelContext(new Coord(xPosLine, minY));
-		grid.stackPixel(newCoord, pixelValue);
-	}
-}
-
-function modifyStyle(grid, drawStyle){
-	for (index in grid.pixelsStack){
-		pixelPosition = grid.pixelsStack[index];
-		pixel = pixelPosition.pixel;
-		pixelValue = getPixelValueIntegrated(grid,pixelPosition.coord, drawStyle);
-		pixel.tempValue = pixelValue;
-	}
-}
-
-function getTextStart(grid,startCoord) {
-	// guess where the text starts
-	var startingColumn = startCoord.x;
-	for (col=startingColumn; col>=0; col--){
-		pixel = grid.getPixel(new Coord(col,startCoord.y));
-		if (isDrawChar(pixel)){
-			break;
-		}
-		previousPixelValue = pixel.getValue();
-		if (previousPixelValue == null){
-			if (col == 0){
-				break;
-			} else{
-				pixel2 = grid.getPixel(new Coord(col-1,startCoord.y));
-				previousPixelValue2 = pixel2.getValue();
-				if (previousPixelValue2 == null || isDrawChar(pixel2)) break;
-			}
-		}
-		startingColumn = col;
-	}
-	var startingRow = startCoord.y;
-	for (row=startingRow; row>=0; row--){
-		pixel = grid.getPixel(new Coord(startingColumn,row));
-		previousPixelValue = pixel.getValue();
-		if (previousPixelValue == null || isDrawChar(pixel)) break;
-		startingRow = row;
-	}
-	return new Coord(startingColumn, startingRow);	
-}
-
-/*
- * TODO: implement trim function so we export just the necessary text
- */
-/*function trimText(text){
-	lines = text.split("\n");
-	ret = "";
-	for (e = 0;e < lines.length;e++) {
-		ret += "\n";
-		for (var g = lines[e], l = 0;l < g.length;l++) {
-			var h = g.charAt(l);
-			ret += h;
-		}
-	}
-}*/
-
-function getText(grid, startCoord){
-	pixel = grid.getPixel(startCoord);
-	if (pixel == undefined) return undefined;
-	
-	pixelValue = pixel.getValue();
-	if (pixelValue == undefined || pixelValue == null) return null;
-	if (isDrawChar(pixel)) return null;
-	
-	var text = "";
-	for (row=startCoord.y; row<grid.rows; row++){
-		pixel = grid.getPixel(new Coord(startCoord.x,row));
-		nextPixelValue = pixel.getValue();
-		if (nextPixelValue == null || isDrawChar(pixel)) break;
-
-		text += "\n";
-		for (col=startCoord.x; col<grid.cols; col++){
-			pixel = grid.getPixel(new Coord(col,row));
-			if (isDrawChar(pixel)){
-				break;
-			}
-			nextPixelValue = pixel.getValue();
-			if (nextPixelValue != null){
-				text += nextPixelValue;
-				continue;
-			}
-			if (col > grid.cols-2){
-				break;
-			}
-			
-			pixel2 = grid.getPixel(new Coord(col+1,row));
-			nextPixelValue2 = pixel2.getValue();
-			if (isDrawChar(pixel2)){
-				break;
-			}
-			
-			if (nextPixelValue2 != null){
-				text += " ";
-				continue;
-			}
-		}
-		
-	}
-	if (text.startsWith("\n")) text = text.substring(1);
-	return text;
-}
-
-/**
- * Here is the logic to integrate the pixels. This function return the best drawing character 
- * so its nicely integrated into the ASCII code
- */
-function getPixelValueIntegrated(grid, coord, drawStyle) {
-	var pixel = grid.getPixel(coord);
-	var pixelValue = pixel.getValue();
-	
-	// test whether the pixel is either of the drawing characters
-	var isBoxPixel = boxChars1.indexOf(pixelValue) != -1;
-	var isArrowPixel = arrowChars1.indexOf(pixelValue) != -1;
-	
-	// if its not a drawing character just return. we have nothing to integrate
-	if (!isBoxPixel && !isArrowPixel) {
-		return pixelValue;
-	}
-	
-	// get pixel context so we decide which is the best character for integration 
-	var pixelContext = grid.getPixelContext(coord);
-	
-	// handle cases when we are drawing a box
-	if (isBoxPixel){
-		if (pixelContext.left && pixelContext.right && pixelContext.bottom && pixelContext.top) {
-			return drawStyles[drawStyle]["cross"];
-		}
-		/* This handles this case: 
-	 	 *                            X - X
-	 	 */
-		if (pixelContext.left && pixelContext.right && !pixelContext.bottom && !pixelContext.top) {
-			return drawStyles[drawStyle]["horizontal"];
-		}
-		/*  
-	 	 * This handles this case:	     X
-	 	 *                               | 
-	 	 *                               X
-	 	*/	
-		else if (!pixelContext.left && !pixelContext.right && pixelContext.bottom && pixelContext.top) {
-			return drawStyles[drawStyle]["vertical"];
-		}
-		/*  
-	 	 * This handles this case:	     ┌X
-	 	 *                               X 
-	 	*/	
-		else if (!pixelContext.left && pixelContext.right && !pixelContext.top && pixelContext.bottom) {
-			cornerPixel = drawStyles[drawStyle]["corner-top-left"];
-			return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
-		}
-		/*  
-	 	 * This handles this case:	     X┐
-	 	 *                                X
-	 	*/	
-		else if (pixelContext.left && !pixelContext.right && !pixelContext.top && pixelContext.bottom) {
-			cornerPixel = drawStyles[drawStyle]["corner-top-right"];
-			return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
-		}
-		/*  
-	 	 * This handles this case:	     X
-	 	 *                               └X
-	 	 *                               
-	 	*/	
-		else if (!pixelContext.left && pixelContext.right && pixelContext.top && !pixelContext.bottom) {
-			cornerPixel = drawStyles[drawStyle]["corner-bottom-left"];
-			return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
-		}
-		/*  
-	 	 * This handles this case:	      X
-	 	 *                               X┘ 
-	 	 *                               
-	 	*/	
-		else if (pixelContext.left && !pixelContext.right && pixelContext.top && !pixelContext.bottom) {
-			cornerPixel = drawStyles[drawStyle]["corner-bottom-right"];
-			return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
-		}
-		else if (pixelContext.left && pixelContext.right && pixelContext.top && !pixelContext.bottom) {
-			pixelValue = drawStyles[drawStyle]["horizontal-light-up"];
-			return pixelValue? pixelValue : drawStyles[drawStyle]["horizontal"];
-		}
-		else if (pixelContext.left && pixelContext.right && !pixelContext.top && pixelContext.bottom) {
-			pixelValue = drawStyles[drawStyle]["horizontal-light-down"];
-			return pixelValue? pixelValue : drawStyles[drawStyle]["horizontal"];
-		}
-		else if (!pixelContext.left && pixelContext.right && pixelContext.top && pixelContext.bottom) {
-			pixelValue = drawStyles[drawStyle]["vertical-light-right"];
-			return pixelValue? pixelValue : drawStyles[drawStyle]["corner"];
-		}
-		else if (pixelContext.left && !pixelContext.right && pixelContext.top && pixelContext.bottom) {
-			pixelValue = drawStyles[drawStyle]["vertical-light-left"];
-			return pixelValue? pixelValue : drawStyles[drawStyle]["corner"];
-		}
-		else if (pixelContext.top || pixelContext.bottom) {
-			return drawStyles[drawStyle]["vertical"];
-		}
-		
-	}
-	// handle cases when we are drawing arrows
-	else if (isArrowPixel) {
-		if (pixelContext.getLength() == 1) {
-			if (pixelContext.left) {
-				return ">";
-			}
-			if (pixelContext.bottom) {
-				return "v";
-			}
-			if (pixelContext.top) {
-				return "^";
-			}
-			if (pixelContext.right) {
-				return "<";
-			}
-		}
-		else if (pixelContext.getLength() == 3) {
-			/*  
-	 		 * This handles this case:		X
-	 		 *                              < X 
-	 		 *                              X
-	 		 */
-			if (!pixelContext.left) {
-				return "<";
-			}
-			/*  
-	 		 * This handles this case:		X
-	 		 *                            X ^ X 
-	 		 *                              
-	 		 */
-			else if (!pixelContext.bottom) {
-				return "^";
-			}
-			/*  
-	 		 * This handles this case:		
-	 		 *                            X v X 
-	 		 *                              X
-	 		 */
-			else if (!pixelContext.top) {
-				return "v";
-			}
-			/*  
-	 		 * This handles this case:		X
-	 		 *                            X >  
-	 		 *                              X 
-	 		 */
-			if (!pixelContext.right) {
-				return ">";
-			}	
-		}
-	}
-		
-	/*  
-	 * This handles this case:		X
-	 *                            X - X 
-	 *                              X
-	 */
-	if (4 == pixelContext.getLength()) {
-		return "-";
-	}
-	
-	return pixelValue;
-}
-
-// --------------------------------------------------- TOOLS ------------------------------------------------------- //
-
-/**
- * This tool handles the cursor movement (arrow keys).
- * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
- */ 
-function CanvasTool(canvas){
-	this.canvas = canvas;
-}
-
-CanvasTool.prototype.canvasMouseDown = function(coord){
-	this.canvas.selectedCell = coord;
-	this.canvas.changed = true;
-}
-
-CanvasTool.prototype.canvasMouseMove = function(coord){
-	this.canvas.selectedCoord = coord;
-	this.canvas.changed = true;
-}
-
-CanvasTool.prototype.keyDown = function(eventObject){
-	if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
-		eventObject.preventDefault();
-	}
-}
-
-CanvasTool.prototype.keyPress = function(eventObject){
-	if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
-		eventObject.preventDefault();
-	}
-}
-
-CanvasTool.prototype.keyUp = function(eventObject){
-	if (eventObject.keyCode >= 112 && eventObject.keyCode <= 145){
-		return;
-	}
-	if (this.canvas.selectedCell == null){
-		eventObject.preventDefault();
-		return;
-	}
-	if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
-		if (this.canvas.grid.getPixel(this.canvas.selectedCell.add(leftCoord)) != undefined){
-			this.canvas.grid.import(" ",this.canvas.selectedCell.add(leftCoord));
-			this.canvas.selectCell(this.canvas.selectedCell.add(leftCoord));
-		}
-  	}
-  	else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
-  		// get current text
-		currentText = getText(this.canvas.grid,this.canvas.selectedCell);
-		if (currentText == null){
-			return;
-		}
-		currentText = currentText.substring(1)+" ";
-		this.canvas.grid.import(currentText,this.canvas.selectedCell);
-  	}
-  	else if (eventObject.keyCode == KeyEvent.DOM_VK_LEFT){
-  		this.canvas.selectCell(this.canvas.selectedCell.add(leftCoord));
-  	}
-  	else if (eventObject.keyCode == KeyEvent.DOM_VK_RIGHT){
-  		this.canvas.selectCell(this.canvas.selectedCell.add(rightCoord));
-  	}
-  	else if (eventObject.keyCode == KeyEvent.DOM_VK_UP){
-  		this.canvas.selectCell(this.canvas.selectedCell.add(topCoord));
-  	}
-  	else if (eventObject.keyCode == KeyEvent.DOM_VK_DOWN){
-  		this.canvas.selectCell(this.canvas.selectedCell.add(bottomCoord));
-  	}
-  	else{
-  		if (this.canvas.grid.getPixel(this.canvas.selectedCell.add(rightCoord)) != undefined){
-  			this.canvas.grid.import(String.fromCharCode(eventObject.which),this.canvas.selectedCell);
- 			this.canvas.selectedCell = this.canvas.selectedCell.add(rightCoord);
- 		}
-  	}
-  	this.canvas.grid.commit();
-    eventObject.preventDefault();
-}
-
-CanvasTool.prototype.canvasMouseLeave = function(){
-	this.canvas.selectedCoord = null;
-	this.canvas.changed = true;
-}
-
-function ClearTool(grid){
-	this.grid = grid;
-}
-
-ClearTool.prototype.click = function(){
-	this.grid.clear();
-	this.grid.commit();
-}
-
-/**
- * This is the function for drawing text
- */
-function TextTool(grid) {
-	this.class = 'TextTool';
-	this.grid = grid;
- 	this.startCoord = null;
- 	this.currentText = null;
- 	this.init();
-}
-
-TextTool.prototype.init = function(){
-	$("#text-input").keyup(function(event) {
-		if (event.keyCode == KeyEvent.DOM_VK_ESCAPE){
-			this.close();
-		} else {
-			this.refresh();
-		}
-	}.bind(this));
-	$("#text-input").keypress(function(eventObject) {
-		this.refresh();
-	}.bind(this));
-	$("#text-input").change(function() {
-		this.refresh();
-	}.bind(this));
-	$("#text-input-close").click(function() {
-		this.close();
-	}.bind(this));
-	$("#text-input-OK").click(function() {
-		this.refresh();		
-		this.grid.commit();
-		this.close();
-	}.bind(this));
-}
-
-TextTool.prototype.canvasMouseDown = function(startCoord) {
-
-	// guess where the text exactly starts
-	this.startCoord = getTextStart(this.grid,startCoord);
-	
-	// show widget 50 pixels up 
-	$("#text-widget").css({"left":clickCoords.x,"top":Math.max(0,clickCoords.y-50)});
-	
-	// get current text
-	this.currentText = getText(this.grid,this.startCoord);
-	
-	// initialize widget
-	$("#text-input").val(this.currentText != null? this.currentText : "");
-	
-	// show widget & set focus
-	$("#text-widget").show(400, function() {
-		$("#text-input").focus();
-    });
-}
-
-TextTool.prototype.click = function() {
-	this.close();
-}
-
-TextTool.prototype.unselect = function() {
-	this.close();
-}
-
-TextTool.prototype.refresh = function() {
-	var newValue = $("#text-input").val();
-	this.grid.resetStack();
-	if (this.currentText != null){
-		this.grid.import(this.currentText.replace(/./g," "),this.startCoord);
-	}
-	this.grid.import(newValue,this.startCoord);
-}
-
-TextTool.prototype.close = function() {
-	$("#text-input").val("");
-	$("#text-widget").hide();
-}
-
-TextTool.prototype.cursor = function() {
-  return "text";
-};
-
-/**
- * This is the function to draw boxes. Basically it needs 2 coordinates: startCoord and endCoord.
- */
-function BoxDrawer(grid) {
-	this.class = 'BoxDrawer';
-	this.grid = grid;
-	this.mode = null;
-	this.startCoord = null;
-	this.endCoord = null;
-}
-
-BoxDrawer.prototype.canvasMouseDown = function(coord) {
-	this.startCoord = coord;
-}
-
-BoxDrawer.prototype.canvasMouseMove = function(coord) {
-	this.endCoord = coord;
-	
-	// check whether the user has the mouse down
-	if (this.mode == 1){
-		// reset stack so we start drawing box every time the user moves the mouse
-		this.grid.resetStack();
-		// get drawing style
-		drawStyle = $("#style-select").val();
-		// draw horizontal line first, then vertical line
-		drawLine(this.grid, this.startCoord, coord, true, '+');
-		// draw vertical line first, then horizontal line
-		drawLine(this.grid, this.startCoord, coord, false, '+');
-		// fix line style
-		modifyStyle(this.grid, drawStyle);
-	}
-};
-
-/*
- * When the user releases the mouse, we know the second coordinate so we draw the box
- */
-BoxDrawer.prototype.canvasMouseUp = function() {
-	if (this.mode == 2){
-		// user has the mouse-up (normal situation)
-	} else{
-		// if user is leaving the canvas, reset stack
-		this.grid.resetStack();
-	}
-	// perform changes
-	this.grid.commit();
-}
-
-/**
- * If the mouse leaves the canvas, we dont want to draw nothing
- */
-BoxDrawer.prototype.canvasMouseLeave = function() {
-	this.grid.resetStack();
-}
-
-BoxDrawer.prototype.cursor = function() {
-	return "crosshair";
-}
-
-/**
- * This tool allows exporting the grid text so user can copy/paste from there
- */
-function ExportTool(canvas){
-	this.canvas = canvas;
-	this.init();
-}
-
-ExportTool.prototype.init = function(){
-	$("#dialog-widget").hide();
-	$("#dialog-widget-close").click(function() {
-		this.close();
-	}.bind(this));
-}
-
-ExportTool.prototype.click = function(){
-			debug("clicking");
-    $("#dialog-textarea").val(this.canvas.grid.export());
-    $("#dialog-widget").show();
-    $("#dialog-textarea").focus(function(){
-		var $this = $(this);
-    	$this.select();
-	});
-    
-}
-
-ExportTool.prototype.close = function() {
-	$("#dialog-textarea").val("");
-	$("#dialog-widget").hide();
-}
-
-
-//------------------------------------------------- COORD CLASS -----------------------------------------------------//
-
-/**
- * A simple pair of coordinates x,y for to use to locate any pixel 
+ * A simple pair of coordinates x,y for to use to locate any pixel
  */
 function Coord(x, y) {
 	this.class = 'Coord';
 	this.x = x;
 	this.y = y;
 }
-Coord.prototype.toString = function()
-{
-		return "Coord["+this.x+","+this.y+"]";
-}
 
-Coord.prototype.add = function(a) {
-	return new Coord(this.x + a.x, this.y + a.y);
-};
+Coord.prototype = {
+	toString : function()	{
+			return "Coord["+this.x+","+this.y+"]";
+	}
+	, add : function(a) {
+		return new Coord(this.x + a.x, this.y + a.y);
+	}
+}
 
 //------------------------------------------------- PIXEL CLASS -----------------------------------------------------//
 
@@ -671,17 +85,17 @@ function Pixel() {
 /**
  * Get the pixel value to be drawn to the canvas. Always draw the temporary value if any
  */
-Pixel.prototype.getValue = function() {
-	return this.tempValue != null? this.tempValue : this.value;
-}
-
-Pixel.prototype.clear = function() {
-	this.value = null;
-	this.tempValue = null;
-}
-
-Pixel.prototype.isEmpty = function() {
-	return this.value == null && this.tempValue == null;
+Pixel.prototype = {
+	getValue : function() {
+		return this.tempValue != null? this.tempValue : this.value;
+	}
+	, clear : function() {
+		this.value = null;
+		this.tempValue = null;
+	}
+	, isEmpty : function() {
+		return this.value == null && this.tempValue == null;
+	}
 }
 
 //---------------------------------------------- PIXEL POSITION CLASS -----------------------------------------------//
@@ -709,140 +123,118 @@ function Grid() {
 /**
  * Initialize grid and restore previous user data if available
  */
-Grid.prototype.init = function(){
-	for (var a = 0;a < this.matrix.length;a++) {
-		this.matrix[a] = Array(this.rows);
-		for (var b = 0;b < this.matrix[a].length;b++) {
-			this.matrix[a][b] = new Pixel;
+Grid.prototype = {
+	init : function(){
+		for (var a = 0;a < this.matrix.length;a++) {
+			this.matrix[a] = Array(this.rows);
+			for (var b = 0;b < this.matrix[a].length;b++) {
+				this.matrix[a][b] = new Pixel;
+			}
+		}
+		if(typeof(Storage) !== "undefined") {
+			previousData = localStorage.getItem("data");
+			if (previousData != null){
+				this.import(previousData, new Coord(0,0));
+				this.commit();
+			}
 		}
 	}
-	if(typeof(Storage) !== "undefined") {
-		previousData = localStorage.getItem("data");
-		if (previousData != null){
-			this.import(previousData, new Coord(0,0));
-			this.commit();
+	/**
+	 * Return the pixel located at the specified coord
+	 */
+	, getPixel : function(coord) {
+		if (coord.x < 0 || coord.x >= this.cols){
+			return undefined;
+		}
+		if (coord.y < 0 || coord.y >= this.rows){
+			return undefined;
+		}
+		return this.matrix[coord.x][coord.y];
+	}
+	/**
+	 * Clears/reset the whole matrix of pixels
+	 */
+	 , clear : function() {
+		for (var a = 0;a < this.matrix.length;a++) {
+			for (var b = 0;b < this.matrix[a].length;b++) {
+				this.matrix[a][b].clear();
+			}
+		}
+		this.changed = true;
+	}
+	, stackPixel : function(coord, value) {
+		var pixel = this.getPixel(coord);
+		this.pixelsStack.push(new PixelPosition(coord, pixel));
+		pixel.tempValue = value;
+		this.changed = true;
+	}
+	, savePixel : function(coord, value) {
+		if (this.getPixel(coord).getValue() != value){
+			this.stackPixel(coord, value);
+		}
+	}
+	/**
+	 * Clears the stack so we have no temporary pixels to be drawn
+	 */
+	, resetStack : function() {
+		for (var b in this.pixelsStack) {
+			this.pixelsStack[b].pixel.tempValue = null;
+		}
+		this.pixelsStack.length = 0;
+		this.changed = true;
+	}
+	/**
+	 * Imports the specified text into the specified coordinates. The text can be multiline.
+	 * All the whitespace characters will be replaced for nulls and it means we want to delete the pixel
+	 */
+	, import : function(text, coord) {
+		lines = text.split("\n");
+		for (e = 0;e < lines.length;e++) {
+			for (var g = lines[e], l = 0;l < g.length;l++) {
+				var h = g.charAt(l);
+				this.stackPixel(new Coord(l,e).add(coord), h);
+			}
+		}
+	}
+	, export : function(){
+		var data = "";
+		for (row=0; row<this.rows; row++){
+			data += "\n";
+			for (col=0; col<this.cols; col++){
+				var pixel = this.getPixel(new Coord(col, row));
+				var pixelValue = pixel.getValue();
+				data += pixelValue == null? " " : pixelValue;
+			}
+		}
+		if (data.startsWith("\n")){
+			data = data.substring(1);
+		}
+		return data;
+	}
+	, commit : function(b) {
+		for (var b in this.pixelsStack) {
+			var pixel = this.pixelsStack[b].pixel;
+			var newValue = pixel.getValue();
+			pixel.value = newValue == " "? null: newValue;
+		}
+		this.resetStack();
+
+		// save data to local storage
+		if(typeof(Storage) !== "undefined") {
+	    	localStorage.setItem("data", this.export());
+		} else {
+	    	// Sorry! No Web Storage support..
 		}
 	}
 }
-
-/**
- * Return the pixel located at the specified coord
- */
-Grid.prototype.getPixel = function(coord) {
-	if (coord.x < 0 || coord.x >= this.cols){
-		return undefined;
-	}
-	if (coord.y < 0 || coord.y >= this.rows){
-		return undefined;
-	}
-	return this.matrix[coord.x][coord.y];
-}
-
-/**
- * Clears/reset the whole matrix of pixels
- */
-Grid.prototype.clear = function() {
-	for (var a = 0;a < this.matrix.length;a++) {
-		for (var b = 0;b < this.matrix[a].length;b++) {
-			this.matrix[a][b].clear();
-		}
-	}
-	this.changed = true;
-}
-
-Grid.prototype.stackPixel = function(coord, value) {
-	var pixel = this.getPixel(coord);
-	this.pixelsStack.push(new PixelPosition(coord, pixel));
-	pixel.tempValue = value;
-	this.changed = true;
-}
-
-Grid.prototype.savePixel = function(coord, value) {
-	if (this.getPixel(coord).getValue() != value){
-		this.stackPixel(coord, value);
-	}
-}
-
-/**
- * Clears the stack so we have no temporary pixels to be drawn
- */
-Grid.prototype.resetStack = function() {
-	for (var b in this.pixelsStack) {
-		this.pixelsStack[b].pixel.tempValue = null;
-	}
-	this.pixelsStack.length = 0;
-	this.changed = true;
-}
-
-/**
- * Returns the context of the specified pixel. That is, the status of the surrounding pixels
- */
-Grid.prototype.getPixelContext = function(coord) {
-	var left = isDrawChar(this.getPixel(coord.add(leftCoord)));
-	var right = isDrawChar(this.getPixel(coord.add(rightCoord)));
-	var top = isDrawChar(this.getPixel(coord.add(topCoord)));
-	var bottom = isDrawChar(this.getPixel(coord.add(bottomCoord)));
-	return new PixelContext(left, right, top, bottom);
-};
-
-/**
- * Imports the specified text into the specified coordinates. The text can be multiline.
- * All the whitespace characters will be replaced for nulls and it means we want to delete the pixel
- */
-Grid.prototype.import = function(text, coord) {
-	lines = text.split("\n");
-	for (e = 0;e < lines.length;e++) {
-		for (var g = lines[e], l = 0;l < g.length;l++) {
-			var h = g.charAt(l);
-			this.stackPixel(new Coord(l,e).add(coord), h);
-		}
-	}
-}
-
-Grid.prototype.export = function(){
-	var data = "";
-	for (row=0; row<this.rows; row++){
-		data += "\n";
-		for (col=0; col<this.cols; col++){
-			var pixel = this.getPixel(new Coord(col, row));
-			var pixelValue = pixel.getValue();
-			data += pixelValue == null? " " : pixelValue;
-		}
-		
-	}
-	if (data.startsWith("\n")){
-		data = data.substring(1);
-	}
-	return data;
-}
-
-Grid.prototype.commit = function(b) {
-	for (var b in this.pixelsStack) {
-		var pixel = this.pixelsStack[b].pixel;
-		var newValue = pixel.getValue();
-		pixel.value = newValue == " "? null: newValue;
-	}
-	this.resetStack();
-	
-	// save data to local storage
-	if(typeof(Storage) !== "undefined") {
-    	localStorage.setItem("data", this.export());
-	} else {
-    	// Sorry! No Web Storage support..
-	}
-}
-
 
 //------------------------------------------------- CANVAS CLASS ----------------------------------------------------//
 
-function Canvas() {
-	this.class = 'Canvas';
-	this.grid = new Grid();
-	this.selectedCoord = null;
-	this.selectedCell = null;
-	this.drawSelectedCell = false;
-	this.canvasHTML = document.getElementById("ascii-canvas");
+function ASCIICanvas(htmlCanvas, grid) {
+	this.class = 'ASCIICanvas';
+	this.canvasHTML = htmlCanvas;
 	this.canvasContext = this.canvasHTML.getContext("2d");
+	this.grid = grid;
 	this.font = defaultFont;
 	this.cellWidth = null;
 	this.cellHeight = null;
@@ -853,335 +245,1020 @@ function Canvas() {
 	this.init();
 }
 
-Canvas.prototype.init = function(){
-	canvas = this;
-	$(window).resize(function() {
-		canvas.resize();
-		$("#canvas-container").width(this.canvas.canvasHTML.width);
-	});
-	this.resize();
+ASCIICanvas.prototype = {
+	init : function(){
+		$(window).resize(function() {
+			this.resize();
+			$("#canvas-container").width(this.getCanvasHTML().width);
+		}.bind(this));
+		this.resize();
+	}
+	,getWidth: function() { return this.getCanvasHTML().width }
+	, getGrid : function() { return this.grid }
+	, getCellWidth : function() { return this.cellWidth }
+	, getCellHeight : function() { return this.cellHeight }
+	, getZoom : function() { return this.zoom }
+	, setZoom: function(newZoom) { this.zoom = newZoom }
+	, getCanvasHTML : function() { return this.canvasHTML }
+	, getCanvasContext : function() { return this.canvasContext }
+	, isFocused : function(){
+		return document.body == document.activeElement;
+	}
+	, clear : function() {
+		this.grid.clear();
+		this.grid.commit();
+		this.changed = true;
+	}
+	, setChanged : function(changed){
+		this.changed = changed;
+	}
+
+	, drawRect : function(coord,width,height,style){
+		this.canvasContext.fillStyle = style;
+		this.canvasContext.fillRect(coord.x*this.cellWidth,coord.y*this.cellHeight,width,height);
+	}
+	, drawText : function(text,coord,style){
+		this.getCanvasContext().fillStyle = style;
+		var canvasCoord = this.getTextLocation(coord);
+		this.getCanvasContext().fillText(text,canvasCoord.x,canvasCoord.y);
+	}
+	, mouseEnter : function() { }
+	, canvasMouseDown : function(coord) {
+		this.startCoord = coord;
+	}
+	, canvasMouseMove : function(coord) { }
+	, canvasMouseUp : function() { }
+	, canvasMouseLeave : function() { }
+	, keyUp : function(eventObject){ }
+	, keyDown : function(eventObject){
+		if (this.isFocused() && eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+			eventObject.preventDefault();
+		}
+	}
+	, keyPress : function(eventObject){
+		if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+			eventObject.preventDefault();
+		}
+	}
+	, cursor : function() { return "crosshair"; }
+	, hasChanged : function(){
+		return this.changed;
+	}
+	, getTextLocation : function(coord){
+		return new Coord(coord.x*this.cellWidth, coord.y*this.cellHeight+this.cellHeight-this.cellDescend);
+	}
+	, recalculateCellDimensions : function(){
+		if (this.cellWidth == null){
+			this.cellWidth = getTextWidth(this.canvasContext, defaultFont);
+			console.log("Cell width '"+this.cellWidth+"'");
+		}
+		if (this.cellHeight == null){
+			heightMetrics = getTextHeight(this.canvasContext,this.font, 0, 0, 100, 100);
+			this.canvasContext.clearRect(0, 0, 100, 100);
+			this.cellHeight = heightMetrics[0];
+			this.cellDescend = heightMetrics[1];
+			if (this.cellHeight == 0) {
+				this.cellHeight = this.cellWidth*1.5;
+			}
+			console.log("Cell height '"+this.cellHeight+"', cell descend '"+this.cellDescend+"'");
+		}
+	}
+	, resize : function (){
+		this.recalculateCellDimensions(this.canvasContext);
+		this.canvasHTML.width = this.grid.cols * Math.round(this.cellWidth) * this.zoom;
+		this.canvasHTML.height = this.grid.rows * Math.round(this.cellHeight) * this.zoom;
+		this.changed = true;
+		console.log("New canvas size ("+this.grid.cols+","+this.grid.rows+","+this.grid.zoom+") '"+this.canvasHTML.width+"/"+this.canvasHTML.height+"'");
+	}
+	, redraw : function() {
+
+		// console.log("Redrawing canvas... zoom '"+this.zoom+"'");
+
+		this.canvasContext.setTransform(1, 0, 0, 1, 0, 0);
+		this.canvasContext.scale(this.zoom, this.zoom);
+
+		// clear everything so we dont have pixels drawn over pixels
+		this.canvasContext.clearRect(0, 0, this.canvasHTML.width, this.canvasHTML.height);
+
+		// Draw border
+		// drawBorder(this.canvasContext,this.canvasHTML.width, this.canvasHTML.height);
+
+		// debug
+		// console.log("Drawing grid with font '"+this.font+"' & size '"+this.cellWidth+"/"+this.cellHeight+"'...");
+
+		// set line width & color for the grid
+		this.canvasContext.lineWidth = "1";
+		this.canvasContext.strokeStyle = "#DDDDDD";
+
+		// draw rows
+		for (i=0; i<this.grid.rows; i++){
+			this.canvasContext.beginPath();
+			this.canvasContext.moveTo(0,i*this.cellHeight);
+			this.canvasContext.lineTo(this.canvasHTML.width, i*this.cellHeight);
+			this.canvasContext.stroke();
+		}
+
+		// draw cols
+		for (i=0; i<this.grid.cols; i++){
+			this.canvasContext.beginPath();
+			this.canvasContext.moveTo(i*this.cellWidth,0);
+			this.canvasContext.lineTo(i*this.cellWidth,this.canvasHTML.height);
+			this.canvasContext.stroke();
+		}
+
+		// print something
+		// paint(this.canvasContext,this.font,this.cellWidth);
+
+		// draw selection
+		this.canvasContext.fillStyle = "#669999";
+		for (col=0; col<this.grid.cols; col++){
+			for (row=0; row<this.grid.rows; row++){
+				var pixel = this.grid.getPixel(new Coord(col, row));
+				if (pixel != null && pixel.tempValue != null && pixel.tempValue != "" && pixel.tempValue != " "){
+					this.canvasContext.fillRect(col*this.cellWidth,row*this.cellHeight,this.cellWidth,this.cellHeight);
+				}
+			}
+		}
+
+		// draw pixels
+		this.canvasContext.font = defaultFont;
+		this.canvasContext.fillStyle = "#000000"
+		for (col=0; col<this.grid.cols; col++){
+			for (row=0; row<this.grid.rows; row++){
+				var pixel = this.grid.getPixel(new Coord(col, row));
+				var pixelValue = pixel.getValue();
+				if (pixelValue != null && pixelValue != ""){
+					// for drawing a char it must be at least cellWidth in y axis
+					var canvasCoord = this.getTextLocation(new Coord(col,row));
+					this.canvasContext.fillText(pixelValue,canvasCoord.x,canvasCoord.y);
+				}
+			}
+		}
+		this.canvasContext.stroke();
+	}
 }
 
-Canvas.prototype.hasChanged = function(){
-	if (this.changed) return true;
-	if (this.cursorChanged()) return true;
-	return false;
+//--------------------------------------------- DRAW CLASSES --------------------------------------------------------//
+
+/**
+ * Calculates the mins and max given 2 coordinates
+ */
+function Box(coordA, coordB) {
+	this.class = 'Box';
+	this.minX = Math.min(coordA.x, coordB.x);
+	this.minY = Math.min(coordA.y, coordB.y);
+	this.maxX = Math.max(coordA.x, coordB.x);
+	this.maxY = Math.max(coordA.y, coordB.y);
 }
 
 /**
- * implementation of intermitent cursor
+ * Encapsulates data for the surrounding pixels
  */
-Canvas.prototype.cursorChanged = function(){
-	if (this.selectedCell == null) return false;
-	var shouldDraw = new Date().getMilliseconds() % 1000 < 500;
-	var changed = shouldDraw != this.drawSelectedCell; 
-	this.drawSelectedCell = shouldDraw;
-	return changed;
+function PixelContext(left, right, top, bottom) {
+	this.class = 'PixelContext';
+	this.left = left;
+	this.right = right;
+	this.bottom = bottom;
+	this.top = top;
 }
 
-Canvas.prototype.getTextLocation = function(coord){
-	return new Coord(coord.x*this.cellWidth, coord.y*this.cellHeight+this.cellHeight-this.cellDescend);
-}
-
-Canvas.prototype.recalculateCellDimensions = function(){
-	if (this.cellWidth == null){
-		this.cellWidth = getTextWidth(this.canvasContext, defaultFont);
-		debug("Cell width '"+this.cellWidth+"'");
+/**
+ * Return the number of surrounding pixels
+ */
+PixelContext.prototype = {
+	getLength : function() {
+		return this.left + this.right + this.bottom + this.top;
 	}
-	if (this.cellHeight == null){
-		heightMetrics = getTextHeight(this.canvasContext,this.font, 0, 0, 100, 100);
-		this.canvasContext.clearRect(0, 0, 100, 100);
-		this.cellHeight = heightMetrics[0];
-		this.cellDescend = heightMetrics[1];
-		if (this.cellHeight == 0) {
-			this.cellHeight = this.cellWidth*1.5;
+	, toString : function() {
+			return "PixelContext["+this.left+","+this.right+","+this.bottom+","+this.top+"]";
+	}
+}
+
+function DrawableCanvas(canvas){
+	this.class = "DrawableCanvas";
+	this.canvas = canvas;
+	this.grid = canvas.getGrid();
+}
+
+DrawableCanvas.prototype = {
+	/**
+	 * Return true if the specified pixel has a drawing character
+	 */
+	isDrawChar : function(pixel) {
+		if (pixel == null || pixel == undefined){
+			return pixel;
 		}
-		debug("Cell height '"+this.cellHeight+"', cell descend '"+this.cellDescend+"'");
+		return UC.isChar(pixel.getValue());
+	}
+	/**
+	 * Returns the context of the specified pixel. That is, the status of the surrounding pixels
+	 */
+	, getPixelContext : function(coord) {
+		var left = this.isDrawChar(this.canvas.getPixel(coord.add(leftCoord)));
+		var right = this.isDrawChar(this.canvas.getPixel(coord.add(rightCoord)));
+		var top = this.isDrawChar(this.canvas.getPixel(coord.add(topCoord)));
+		var bottom = this.isDrawChar(this.canvas.getPixel(coord.add(bottomCoord)));
+		return new PixelContext(left, right, top, bottom);
+	}
+	/**
+	 * This functions draws a line of pixels from startCoord to endCoord. The line can be drawn 2 ways: either first horizontal line of first vertical line.
+	 * For drawing boxes, the line should be drawn both ways.
+	 */
+	, drawLine : function(startCoord, endCoord, drawHorizontalFirst, pixelValue) {
+		// console.log("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
+
+		// calculate box so we know from where to where we should draw the line
+		var box = new Box(startCoord, endCoord), minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY;
+
+		// calculate where to draw the horizontal line
+		var yPosHorizontalLine = drawHorizontalFirst ? startCoord.y : endCoord.y
+		for (;minX <= maxX; minX++) {
+			var newCoord = new Coord(minX, yPosHorizontalLine), pixelContext = this.getPixelContext(new Coord(minX, yPosHorizontalLine));
+			this.grid.stackPixel(newCoord, pixelValue);
+		}
+		// calculate where to draw the vertical line
+		var xPosLine = drawHorizontalFirst ? endCoord.x : startCoord.x;
+		for (;minY <= maxY; minY++) {
+			var newCoord = new Coord(xPosLine, minY), pixelContext = this.getPixelContext(new Coord(xPosLine, minY));
+			this.grid.stackPixel(newCoord, pixelValue);
+		}
+	}
+	, getTextStart : function(startCoord) {
+		// guess where the text starts
+		var startingColumn = startCoord.x;
+		for (col=startingColumn; col>=0; col--){
+			pixel = this.grid.getPixel(new Coord(col,startCoord.y));
+			if (this.isDrawChar(pixel)){
+				break;
+			}
+			previousPixelValue = pixel.getValue();
+			if (previousPixelValue == null){
+				if (col == 0){
+					break;
+				} else{
+					pixel2 = this.grid.getPixel(new Coord(col-1,startCoord.y));
+					previousPixelValue2 = pixel2.getValue();
+					if (previousPixelValue2 == null || this.isDrawChar(pixel2)) break;
+				}
+			}
+			startingColumn = col;
+		}
+		var startingRow = startCoord.y;
+		for (row=startingRow; row>=0; row--){
+			pixel = this.grid.getPixel(new Coord(startingColumn,row));
+			previousPixelValue = pixel.getValue();
+			if (previousPixelValue == null || this.isDrawChar(pixel)) break;
+			startingRow = row;
+		}
+		return new Coord(startingColumn, startingRow);
+	}
+
+	/*
+	 * TODO: implement trim function so we export just the necessary text
+	 */
+	/*function trimText(text){
+		lines = text.split("\n");
+		ret = "";
+		for (e = 0;e < lines.length;e++) {
+			ret += "\n";
+			for (var g = lines[e], l = 0;l < g.length;l++) {
+				var h = g.charAt(l);
+				ret += h;
+			}
+		}
+	}*/
+	, getText : function(startCoord){
+		pixel = this.grid.getPixel(startCoord);
+		if (pixel == undefined) return undefined;
+
+		pixelValue = pixel.getValue();
+		if (pixelValue == undefined || pixelValue == null) return null;
+		if (this.isDrawChar(pixel)) return null;
+
+		var text = "";
+		for (row=startCoord.y; row<this.grid.rows; row++){
+			pixel = this.grid.getPixel(new Coord(startCoord.x,row));
+			nextPixelValue = pixel.getValue();
+			if (nextPixelValue == null || this.isDrawChar(pixel)) break;
+
+			text += "\n";
+			for (col=startCoord.x; col<this.grid.cols; col++){
+				pixel = this.grid.getPixel(new Coord(col,row));
+				if (this.isDrawChar(pixel)){
+					break;
+				}
+				nextPixelValue = pixel.getValue();
+				if (nextPixelValue != null){
+					text += nextPixelValue;
+					continue;
+				}
+				if (col > this.grid.cols-2){
+					break;
+				}
+
+				pixel2 = this.grid.getPixel(new Coord(col+1,row));
+				nextPixelValue2 = pixel2.getValue();
+				if (this.isDrawChar(pixel2)){
+					break;
+				}
+
+				if (nextPixelValue2 != null){
+					text += " ";
+					continue;
+				}
+			}
+		}
+		if (text.startsWith("\n")) text = text.substring(1);
+		return text;
 	}
 }
 
-Canvas.prototype.resize = function (){
-	this.recalculateCellDimensions(this.canvasContext);
-	this.canvasHTML.width = this.grid.cols * Math.round(this.cellWidth) * this.zoom;
-	this.canvasHTML.height = this.grid.rows * Math.round(this.cellHeight) * this.zoom;
-	this.changed = true;
-	debug("New canvas size '"+this.canvasHTML.width+"/"+this.canvasHTML.height+"'");	
+// ----------------------------------------------- STYLE DECORATOR ------------------------------------------------- //
+
+function StylableCanvas(canvas){
+	this.class = "StylableCanvas";
+	this.canvas = canvas;
 }
 
-Canvas.prototype.selectCell = function(coord){
-	if (this.grid.getPixel(coord) != undefined){
+StylableCanvas.prototype = {
+
+	drawLine : function(startCoord, endCoord, drawHorizontalFirst, pixelValue) {
+		this.canvas.drawLine(startCoord, endCoord, drawHorizontalFirst, pixelValue);
+		// get drawing style
+		drawStyle = $("#style-select").val();
+		// fix line style
+		for (index in this.canvas.pixelsStack){
+			pixelPosition = this.canvas.pixelsStack[index];
+			pixel = pixelPosition.pixel;
+			pixelValue = this.getPixelValueIntegrated(pixelPosition.coord, drawStyle);
+			pixel.tempValue = pixelValue;
+		}
+	}
+	/**
+	 * Here is the logic to integrate the pixels. This function return the best drawing character
+	 * so its nicely integrated into the ASCII code
+	 */
+	, getPixelValueIntegrated : function(coord, drawStyle) {
+		var pixel = this.canvas.getPixel(coord);
+		var pixelValue = pixel.getValue();
+
+		// test whether the pixel is either of the drawing characters
+		var isBoxPixel = boxChars1.indexOf(pixelValue) != -1;
+		var isArrowPixel = arrowChars1.indexOf(pixelValue) != -1;
+
+		// if its not a drawing character just return. we have nothing to integrate
+		if (!isBoxPixel && !isArrowPixel) {
+			return pixelValue;
+		}
+
+		// get pixel context so we decide which is the best character for integration
+		var pixelContext = this.canvas.getPixelContext(coord);
+
+		// handle cases when we are drawing a box
+		if (isBoxPixel){
+			if (pixelContext.left && pixelContext.right && pixelContext.bottom && pixelContext.top) {
+				return drawStyles[drawStyle]["cross"];
+			}
+			/* This handles this case:
+		 	 *                            X - X
+		 	 */
+			if (pixelContext.left && pixelContext.right && !pixelContext.bottom && !pixelContext.top) {
+				return drawStyles[drawStyle]["horizontal"];
+			}
+			/*
+		 	 * This handles this case:	     X
+		 	 *                               |
+		 	 *                               X
+		 	*/
+			else if (!pixelContext.left && !pixelContext.right && pixelContext.bottom && pixelContext.top) {
+				return drawStyles[drawStyle]["vertical"];
+			}
+			/*
+		 	 * This handles this case:	     ┌X
+		 	 *                               X
+		 	*/
+			else if (!pixelContext.left && pixelContext.right && !pixelContext.top && pixelContext.bottom) {
+				cornerPixel = drawStyles[drawStyle]["corner-top-left"];
+				return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+			}
+			/*
+		 	 * This handles this case:	     X┐
+		 	 *                                X
+		 	*/
+			else if (pixelContext.left && !pixelContext.right && !pixelContext.top && pixelContext.bottom) {
+				cornerPixel = drawStyles[drawStyle]["corner-top-right"];
+				return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+			}
+			/*
+		 	 * This handles this case:	     X
+		 	 *                               └X
+		 	 *
+		 	*/
+			else if (!pixelContext.left && pixelContext.right && pixelContext.top && !pixelContext.bottom) {
+				cornerPixel = drawStyles[drawStyle]["corner-bottom-left"];
+				return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+			}
+			/*
+		 	 * This handles this case:	      X
+		 	 *                               X┘
+		 	 *
+		 	*/
+			else if (pixelContext.left && !pixelContext.right && pixelContext.top && !pixelContext.bottom) {
+				cornerPixel = drawStyles[drawStyle]["corner-bottom-right"];
+				return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+			}
+			else if (pixelContext.left && pixelContext.right && pixelContext.top && !pixelContext.bottom) {
+				pixelValue = drawStyles[drawStyle]["horizontal-light-up"];
+				return pixelValue? pixelValue : drawStyles[drawStyle]["horizontal"];
+			}
+			else if (pixelContext.left && pixelContext.right && !pixelContext.top && pixelContext.bottom) {
+				pixelValue = drawStyles[drawStyle]["horizontal-light-down"];
+				return pixelValue? pixelValue : drawStyles[drawStyle]["horizontal"];
+			}
+			else if (!pixelContext.left && pixelContext.right && pixelContext.top && pixelContext.bottom) {
+				pixelValue = drawStyles[drawStyle]["vertical-light-right"];
+				return pixelValue? pixelValue : drawStyles[drawStyle]["corner"];
+			}
+			else if (pixelContext.left && !pixelContext.right && pixelContext.top && pixelContext.bottom) {
+				pixelValue = drawStyles[drawStyle]["vertical-light-left"];
+				return pixelValue? pixelValue : drawStyles[drawStyle]["corner"];
+			}
+			else if (pixelContext.top || pixelContext.bottom) {
+				return drawStyles[drawStyle]["vertical"];
+			}
+
+		}
+		// handle cases when we are drawing arrows
+		else if (isArrowPixel) {
+			if (pixelContext.getLength() == 1) {
+				if (pixelContext.left) {
+					return ">";
+				}
+				if (pixelContext.bottom) {
+					return "v";
+				}
+				if (pixelContext.top) {
+					return "^";
+				}
+				if (pixelContext.right) {
+					return "<";
+				}
+			}
+			else if (pixelContext.getLength() == 3) {
+				/*
+		 		 * This handles this case:		X
+		 		 *                              < X
+		 		 *                              X
+		 		 */
+				if (!pixelContext.left) {
+					return "<";
+				}
+				/*
+		 		 * This handles this case:		X
+		 		 *                            X ^ X
+		 		 *
+		 		 */
+				else if (!pixelContext.bottom) {
+					return "^";
+				}
+				/*
+		 		 * This handles this case:
+		 		 *                            X v X
+		 		 *                              X
+		 		 */
+				else if (!pixelContext.top) {
+					return "v";
+				}
+				/*
+		 		 * This handles this case:		X
+		 		 *                            X >
+		 		 *                              X
+		 		 */
+				if (!pixelContext.right) {
+					return ">";
+				}
+			}
+		}
+
+		/*
+		 * This handles this case:		X
+		 *                            X - X
+		 *                              X
+		 */
+		if (4 == pixelContext.getLength()) {
+			return "-";
+		}
+
+		return pixelValue;
+	}
+}
+
+// -------------------------------------------------- DECORATORS --------------------------------------------------- //
+
+/**
+ * This tool handles the cursor position & movement (arrow keys) and pointer hovering.
+ * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
+ */
+function PointerDecorator(canvas, toolId){
+	this.class = "PointerDecorator";
+	this.canvas = canvas;
+	this.toolId;
+	this.selectedCell = null;
+	this.pointerCell = null;
+	this.drawSelectedCell = false;
+	this.changed = false;
+}
+
+PointerDecorator.prototype = {
+
+	getPointerCell : function() { return this.pointerCell }
+	, setPointerCell : function(coord) { this.pointerCell = coord }
+	, getDrawSelectedCell : function() { return this.drawSelectedCell }
+	, setDrawSelectedCell : function(draw) { this.drawSelectedCell = draw }
+	, getSelectedCell : function() { return this.selectedCell }
+	, setSelectedCell : function(coord){
+		if (this.canvas.getGrid().getPixel(coord) != undefined){
   		this.selectedCell = coord;
   	}
-}
-
-Canvas.prototype.animate = function() {
-	if (this.hasChanged() || this.grid.changed) {
-		this.redraw();
-		this.changed = false, this.grid.changed = false;
 	}
-	var canvas = this;
-	window.requestAnimationFrame(function() {
-		canvas.animate();
-	});
-};
-
-Canvas.prototype.redraw = function() {
-
-	// debug("Redrawing canvas... zoom '"+this.zoom+"' drawCursor '"+this.drawSelectedCell+"'");
-	
-	this.canvasContext.setTransform(1, 0, 0, 1, 0, 0);
-	this.canvasContext.scale(this.zoom, this.zoom);
-	
-	// clear everything so we dont have pixels drawn over pixels
-	this.canvasContext.clearRect(0, 0, this.canvasHTML.width, this.canvasHTML.height);
-	
-	// Draw border
-	// drawBorder(this.canvasContext,this.canvasHTML.width, this.canvasHTML.height);
-
-	// debug
-	// debug("Drawing grid with font '"+this.font+"' & size '"+this.cellWidth+"/"+this.cellHeight+"'...");
-
-	// set line width & color for the grid
-	this.canvasContext.lineWidth = "1";
-	this.canvasContext.strokeStyle = "#DDDDDD";
-
-	// draw rows
-	for (i=0; i<this.grid.rows; i++){
-		this.canvasContext.beginPath();
-		this.canvasContext.moveTo(0,i*this.cellHeight);
-		this.canvasContext.lineTo(this.canvasHTML.width, i*this.cellHeight);
-		this.canvasContext.stroke();
+	, setChanged : function(changed){
+		this.canvas.setChanged(changed);
+		this.changed = changed;
 	}
-
-	// draw cols
-	for (i=0; i<this.grid.cols; i++){
-		this.canvasContext.beginPath();
-		this.canvasContext.moveTo(i*this.cellWidth,0);
-		this.canvasContext.lineTo(i*this.cellWidth,this.canvasHTML.height);
-		this.canvasContext.stroke();
+	, hasChanged : function(){
+		this.refresh();
+		return this.canvas.hasChanged() || this.changed;
 	}
-
-	// print something
-	// paint(this.canvasContext,this.font,this.cellWidth);
-
-	// draw selection
-	this.canvasContext.fillStyle = "#669999";
-	for (col=0; col<this.grid.cols; col++){
-		for (row=0; row<this.grid.rows; row++){
-			var pixel = this.grid.getPixel(new Coord(col, row));
-			if (pixel != null && pixel.tempValue != null && pixel.tempValue != "" && pixel.tempValue != " "){
-				this.canvasContext.fillRect(col*this.cellWidth,row*this.cellHeight,this.cellWidth,this.cellHeight);
-			}
+	, redraw : function(){
+		this.canvas.redraw();
+		// draw selected cell
+		if (this.getSelectedCell() != null && this.getDrawSelectedCell()){
+			this.canvas.drawText("▏",this.getSelectedCell(),"#009900");
+		}
+		// draw pointer
+		if (this.getPointerCell() != null){
+			this.canvas.drawRect(this.getPointerCell(),this.canvas.getCellWidth(), this.canvas.getCellHeight(), "#009900");
 		}
 	}
-	
-	// draw pixel selected
-	if (this.selectedCoord != null){
-		this.canvasContext.fillStyle = "#009900";
-		this.canvasContext.fillRect(this.selectedCoord.x*this.cellWidth,this.selectedCoord.y*this.cellHeight,this.cellWidth,this.cellHeight);
+	/**
+ 	 * implementation of intermitent cursor
+ 	 */
+	, refresh : function(){
+		if (this.getSelectedCell() == null) return false;
+		var shouldDraw = new Date().getMilliseconds() % 1000 < 500;
+		var changed = shouldDraw != this.getDrawSelectedCell();
+		this.setDrawSelectedCell(shouldDraw);
+		this.changed = this.changed || changed;
 	}
-	
-	// draw pixel selected
-	if (this.selectedCell != null && this.drawSelectedCell){
-		this.canvasContext.fillStyle = "#009900";
-		var canvasCoord = this.getTextLocation(new Coord(this.selectedCell.x,this.selectedCell.y));
-		this.canvasContext.fillText("▏",canvasCoord.x,canvasCoord.y);
+	, canvasMouseMove : function(coord){
+		this.canvas.canvasMouseMove(coord);
+		this.setPointerCell(coord);
+		this.changed = true;
+	}
+	, canvasMouseDown : function(coord){
+		this.canvas.canvasMouseDown(coord);
+		this.setSelectedCell(coord);
+		this.changed = true;
+	}
+	, canvasMouseLeave : function(){
+		this.canvas.canvasMouseLeave();
+		this.setPointerCell(null);
+		this.changed = true;
+	}
+	/**
+	 * This to prevent moving the document with the arrow keys
+	 */
+	, keyDown : function(eventObject){
+		this.canvas.keyDown(eventObject);
+
+		// check if canvas has the focus
+		if (this.canvas.isFocused()){ return }
+
+		// prevent from processing unwanted keys
+		if (eventObject.keyCode == KeyEvent.DOM_VK_LEFT){
+	  		eventObject.preventDefault();
+	  	}
+	  	else if (eventObject.keyCode == KeyEvent.DOM_VK_RIGHT){
+	  		eventObject.preventDefault();
+	  	}
+	  	else if (eventObject.keyCode == KeyEvent.DOM_VK_UP){
+	  		eventObject.preventDefault();
+	  	}
+	  	else if (eventObject.keyCode == KeyEvent.DOM_VK_DOWN){
+	  		eventObject.preventDefault();
+	  	}
 	}
 
-	// draw pixels
-	this.canvasContext.font = defaultFont;
-	this.canvasContext.fillStyle = "#000000"
-	for (col=0; col<this.grid.cols; col++){
-		for (row=0; row<this.grid.rows; row++){
-			var pixel = this.grid.getPixel(new Coord(col, row));
-			var pixelValue = pixel.getValue();
-			if (pixelValue != null && pixelValue != ""){
-				// for drawing a char it must be at least cellWidth in y axis
-				var canvasCoord = this.getTextLocation(new Coord(col,row));
-				this.canvasContext.fillText(pixelValue,canvasCoord.x,canvasCoord.y);
+	, keyUp : function(eventObject){
+
+		// check if we have the focus
+		if (!this.canvas.isFocused()){ return }
+
+		// check if there is the pointer is inside the canvas
+		if (this.getSelectedCell() == null){ return; }
+
+		// move selected cell with the arrows & backspace key
+		if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+			if (this.canvas.getPixel(this.getSelectedCell().add(leftCoord)) != undefined){
+				this.setSelectedCell(this.getSelectedCell().add(leftCoord));
 			}
-		}
+  	} else if (eventObject.keyCode == KeyEvent.DOM_VK_LEFT){
+  		this.setSelectedCell(this.getSelectedCell().add(leftCoord));
+  	}	else if (eventObject.keyCode == KeyEvent.DOM_VK_RIGHT){
+  		this.setSelectedCell(this.getSelectedCell().add(rightCoord));
+  	}	else if (eventObject.keyCode == KeyEvent.DOM_VK_UP){
+  		this.setSelectedCell(this.getSelectedCell().add(topCoord));
+  	}	else if (eventObject.keyCode == KeyEvent.DOM_VK_DOWN){
+  		this.setSelectedCell(this.getSelectedCell().add(bottomCoord));
+  	}
+  	this.changed = true;
 	}
-	this.canvasContext.stroke();
+}
+
+// ---------------------------------------------- CANVAS CHAR DECORATOR -------------------------------------------- //
+
+/**
+ * This tool handles the cursor position & movement (arrow keys) and pointer hovering.
+ * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
+ */
+function CharWriterDecorator(canvas){
+	this.class = "CharWriterDecorator";
+	this.canvas = canvas;
+}
+
+CharWriterDecorator.prototype = {
+
+	keyUp : function(eventObject){
+
+		// dont process F1-F12 keys
+		if (eventObject.keyCode >= KeyEvent.DOM_VK_F1 && eventObject.keyCode <= KeyEvent.DOM_VK_F24){ return;	}
+
+		// dont write anything
+		if (!this.canvas.isFocused()){ return }
+
+		if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+			if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
+				this.canvas.import(" ",this.canvas.getSelectedCell().add(leftCoord));
+			}
+  	}	else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
+  		// get current text
+			currentText = this.canvas.getText(this.canvas.getSelectedCell());
+			if (currentText == null){ return;	}
+			// delete first character and replace last with space (we are moving text to left)
+			currentText = currentText.substring(1)+" ";
+			this.canvas.import(currentText,this.canvas.getSelectedCell());
+  	}	else{
+  		if (this.canvas.getPixel(this.canvas.getSelectedCell().add(rightCoord)) != undefined){
+  			this.canvas.import(String.fromCharCode(eventObject.which),this.canvas.getSelectedCell());
+ 				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+ 			}
+  	}
+  	this.canvas.commit();
+  	this.canvas.setChanged(true);
+
+		// propagate event
+		this.canvas.keyUp(eventObject);
+	}
+}
+
+// -------------------------------------------------- TOOL DECORATOR ----------------------------------------------- //
+
+/**
+ * Abstract tool
+ */
+
+function ToolableCanvas(canvas){
+	this.class = "ToolableCanvas";
+	this.canvas = canvas;
+	this.activeTool = null;
+}
+
+ToolableCanvas.prototype = {
+	getId : function() { return this.toolId }
+	, getActiveTool : function(){ return this.activeTool; }
+	, click : function(elementId){
+		console.log("Selected tool: "+elementId);
+		this.activeTool = elementId;
+	}
+}
+
+// ------------------------------------------------- TOOLS DECORATORS ---------------------------------------------- //
+
+function ClearCanvasTool(canvas, toolId){
+	this.class = "ClearCanvasTool";
+	this.canvas = canvas;
+	this.toolId = toolId;
+}
+
+ClearCanvasTool.prototype.click = function(elementId){
+	this.canvas.click(elementId);
+	if (this.canvas.getActiveTool() == this.toolId) {
+		this.canvas.getGrid().commit();
+		this.canvas.clear();
+	}
 }
 
 
+/**
+ * This is the function for drawing text
+ */
+function TextEditTool(canvas, toolId) {
+	this.class = 'TextEditTool';
+	this.canvas = canvas;
+	this.toolId = toolId;
+ 	this.startCoord = null;
+ 	this.currentText = null;
+ 	this.init();
+}
 
+TextEditTool.prototype = {
+	init : function(){
+		$("#text-input").keyup(function(event) {
+			if (event.keyCode == KeyEvent.DOM_VK_ESCAPE){
+				this.close();
+			} else {
+				this.refresh();
+			}
+		}.bind(this));
+		$("#text-input").keypress(function(eventObject) {
+			this.refresh();
+		}.bind(this));
+		$("#text-input").change(function() {
+			this.refresh();
+		}.bind(this));
+		$("#text-input").blur(function() {
+			// TODO: close on blur, but count that ok button is also trigerring blur
+			// this.close();
+		}.bind(this));
+		$("#text-input-close").click(function() {
+			this.close();
+		}.bind(this));
+		$("#text-input-OK").click(function() {
+			this.refresh();
+			this.canvas.getGrid().commit();
+			this.close();
+		}.bind(this));
+	}
+	, click : function(elementId){
+		this.canvas.click(elementId);
+		this.close();
+	}
+	, canvasMouseDown : function(startCoord) {
+
+		if (this.canvas.getActiveTool() == this.toolId) {
+
+			// guess where the text exactly starts
+			this.startCoord = this.canvas.getTextStart(startCoord);
+
+			// show widget 50 pixels up
+			$("#text-widget").css({"left":clickCoords.x,"top":Math.max(0,clickCoords.y-50)});
+
+			// get current text
+			this.currentText = this.canvas.getText(this.startCoord);
+
+			// initialize widget
+			$("#text-input").val(this.currentText != null? this.currentText : "");
+
+			// show widget & set focus
+			$("#text-widget").show(400, function() {
+				$("#text-input").focus();
+		    });
+	    }
+
+		return this.canvas.canvasMouseDown(startCoord);
+	}
+	, refresh : function() {
+		var newValue = $("#text-input").val();
+		if (this.currentText != null){
+			this.canvas.getGrid().import(this.currentText.replace(/./g," "),this.startCoord);
+		}
+		this.canvas.getGrid().import(newValue,this.startCoord);
+	}
+	, close : function() {
+		$("#text-input").val("");
+		$("#text-widget").hide();
+		this.canvas.getGrid().resetStack();
+	}
+	, cursor : function() {
+  		return "text";
+	}
+}
+
+
+/**
+ * This is the function to draw boxes. Basically it needs 2 coordinates: startCoord and endCoord.
+ */
+function BoxDrawerTool(canvas, toolId) {
+	this.class = 'BoxDrawerTool';
+	this.canvas = canvas;
+	this.toolId = toolId;
+	this.mode = null;
+	this.startCoord = null;
+	this.endCoord = null;
+	this.mouseStatus = null;
+}
+
+BoxDrawerTool.prototype = {
+	canvasMouseDown : function(coord) {
+		this.canvas.canvasMouseDown(coord);
+		this.mouseStatus = "down";
+		this.startCoord = coord;
+	}
+	,canvasMouseMove : function(coord) {
+		if (this.canvas.getActiveTool() != this.toolId){
+			return this.canvas.canvasMouseMove(coord);
+		}
+		this.endCoord = coord;
+
+		// check whether the user has the mouse down
+		if (this.mouseStatus == "down"){
+			// reset stack so we start drawing box every time the user moves the mouse
+			this.canvas.getGrid().resetStack();
+			// draw horizontal line first, then vertical line
+			this.canvas.drawLine(this.startCoord, coord, true, '+');
+			// draw vertical line first, then horizontal line
+			this.canvas.drawLine(this.startCoord, coord, false, '+');
+			// update canvas
+			this.canvas.setChanged(true);
+		}
+	}
+	/*
+ 	 * When the user releases the mouse, we know the second coordinate so we draw the box
+ 	 */
+	, canvasMouseUp : function() {
+		if (this.canvas.getActiveTool() != this.toolId){
+			return this.canvas.canvasMouseUp();
+		}
+		if (this.mouseStatus == "down"){
+			// user has the mouse-up (normal situation)
+		} else{
+			// if user is leaving the canvas, reset stack
+			this.canvas.getGrid().resetStack();
+		}
+		// perform changes
+		this.canvas.getGrid().commit();
+
+		// update status
+		this.mouseStatus = "up";
+
+		// update canvas
+		this.canvas.setChanged(true);
+	}
+	/**
+ 	 * If the mouse leaves the canvas, we dont want to draw nothing
+ 	 */
+	, canvasMouseLeave : function() {
+		return this.canvas.canvasMouseLeave();
+		if (this.canvas.getActiveTool() == this.toolId){
+			this.canvas.getGrid().resetStack();
+		}
+		this.mouseStatus = "out";
+	}
+	, cursor : function() {
+		return "crosshair";
+	}
+}
+
+/**
+ * This tool allows exporting the grid text so user can copy/paste from there
+ */
+function ExportASCIITool(canvas, toolId){
+	this.canvas = canvas;
+	this.toolId = toolId;
+	this.init();
+}
+
+ExportASCIITool.prototype = {
+	init : function(){
+		$("#dialog-widget").hide();
+		$("#dialog-widget-close").click(function() {
+			this.close();
+		}.bind(this));
+	}
+	, click : function(elementId){
+		this.canvas.click(elementId);
+		if (this.canvas.getActiveTool() != this.toolId){
+			return ;
+		}
+	    $("#dialog-textarea").val(this.canvas.getGrid().export());
+	    $("#dialog-widget").show();
+	    $("#dialog-textarea").focus(function(){
+			var $this = $(this);
+	    	$this.select();
+		});
+    }
+    , close : function() {
+		$("#dialog-textarea").val("");
+		$("#dialog-widget").hide();
+	}
+}
 
 //------------------------------------------------- MOUSE CONTROLLER ------------------------------------------------//
 
-function MouseController(canvas, tools) {
+function MouseController(canvas) {
 	this.class = 'MouseController';
 	this.canvas = canvas;
-	this.tools = tools;
-	this.selectedTool = tools["select"];
 	this.init();
 	this.setActiveElement("select-button");
 }
 
 MouseController.prototype.init = function() {
 	$("#tools > button.tool").click(function(eventObject) {
-	
+
 		// get id of clicked button
 		elementId = eventObject.target.id;
-		
+
 		// visual effect: set active button
 		this.setActiveElement(elementId);
-		
-		// get tool
-		var toolId = elementId.substring(0,elementId.indexOf("-"));
-		selectedTool = this.tools[toolId];
-		
-		// unselect previous tool
-		if (this.selectedTool != null && selectedTool != this.selectedTool){
-			if (typeof(this.selectedTool.unselect) == "function"){
-				this.selectedTool.unselect();
-			}
-		}
-				
-		// link new tool
-		this.selectedTool = selectedTool;
-		
+
 		// invoke tool
-		if (typeof(this.selectedTool.click) == "function"){
-			this.selectedTool.click();
-		}
+		this.canvas.click(elementId);
+
 	}.bind(this));
-	
+
 	// bind mousewheel for zooming into the canvas
-	$(this.canvas.canvasHTML).bind("mousewheel", function(eventObject) {
+	$(this.canvas.getCanvasHTML()).bind("mousewheel", function(eventObject) {
 		var newZoom = this.canvas.zoom * (eventObject.originalEvent.wheelDelta > 0 ? 1.1 : 0.9);
 		newZoom = Math.max(Math.min(newZoom, 4), 1);
-		this.canvas.zoom = newZoom;
+		this.canvas.setZoom(newZoom);
 		this.canvas.resize();
-		$("#canvas-container").width(this.canvas.canvasHTML.width);
+		$("#canvas-container").width(this.canvas.getCanvasHTML().width);
 		return false;
 	}.bind(this));
-	
+
 	// bind mouse action for handling the drawing
-	$(this.canvas.canvasHTML).mousedown(function(mouseEvent) {
-		if (this.selectedTool == null){
-			alert("Select tool first");
-			return;
-		}
-		
+	$(this.canvas.getCanvasHTML()).mousedown(function(mouseEvent) {
+
 		// these are the client coordinates
 		clickCoords = new Coord(mouseEvent.clientX, mouseEvent.clientY);
 
 		// get client relative coordinates for canvas element
-		var canvasCoord = getCanvasCoord(this.canvas.canvasHTML,mouseEvent);
-		
+		var canvasCoord = getCanvasCoord(this.canvas.getCanvasHTML(),mouseEvent);
+
 		// get coordinates relative to actual zoom
-		canvasCoord = getZoomedCanvasCoord(canvasCoord,this.canvas.zoom);
-		
+		canvasCoord = getZoomedCanvasCoord(canvasCoord,this.canvas.getZoom());
+
 		// get pixel located at the specified coordinate
-		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.cellWidth), Math.floor(canvasCoord.y / this.canvas.cellHeight));
-		
-		// prepare tool to start doing its job
-		this.selectedTool.mode = 1;
-		this.selectedTool.startCoord = pixelCoord;
-		
+		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.getCellWidth()), Math.floor(canvasCoord.y / this.canvas.getCellHeight()));
+
 		// invoke tool to do its job
-		if (typeof(this.selectedTool.canvasMouseDown) == "function"){
-			this.selectedTool.canvasMouseDown(pixelCoord);
-		}
-	 
+		this.canvas.canvasMouseDown(pixelCoord);
+
 	}.bind(this));
-		
-	$(this.canvas.canvasHTML).mouseup(function() {
-		if (this.selectedTool == null){
-			return;
-		}
-		this.selectedTool.mode = 2;
-		
-		if (typeof(this.selectedTool.canvasMouseUp) == "function"){
-			this.selectedTool.canvasMouseUp();
-		}
-		
+
+	$(this.canvas.getCanvasHTML()).mouseup(function() {
+
+		this.canvas.canvasMouseUp();
+
 	}.bind(this));
-	
-	$(this.canvas.canvasHTML).mouseenter(function() {
-		if (this.selectedTool == null){
-				this.canvas.canvasHTML.style.cursor = "text";
-				return;
-		}
-		if (typeof(this.selectedTool.cursor) == "function"){
-			this.canvas.canvasHTML.style.cursor = this.selectedTool.cursor();
-		}
-		if (typeof(this.selectedTool.mouseEnter) == "function"){
-			this.selectedTool.mouseEnter();
-		}			
+
+	$(this.canvas.getCanvasHTML()).mouseenter(function() {
+
+		this.canvas.getCanvasHTML().style.cursor = this.canvas.cursor();
+
+		this.canvas.mouseEnter();
+
 	}.bind(this));
-	
-	$(this.canvas.canvasHTML).mousemove(function(mouseEvent) {
-	
+
+	$(this.canvas.getCanvasHTML()).mousemove(function(mouseEvent) {
+
 		// get canvas relative coordinates
-		var canvasCoord = getCanvasCoord(this.canvas.canvasHTML,mouseEvent);
-		
-		canvasCoord = getZoomedCanvasCoord(canvasCoord,this.canvas.zoom);
-		
+		var canvasCoord = getCanvasCoord(this.canvas.getCanvasHTML(),mouseEvent);
+
+		canvasCoord = getZoomedCanvasCoord(canvasCoord,this.canvas.getZoom());
+
 		// get pixel located at the specified coordinate
-		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.cellWidth), Math.floor(canvasCoord.y / this.canvas.cellHeight));
-	
-		if (this.selectedTool == null){
-			return;
-		}
-			
-		if (typeof(this.selectedTool.canvasMouseMove) != "function"){
-			return;
-		}
-		
-		this.selectedTool.canvasMouseMove(pixelCoord);
+		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.getCellWidth()), Math.floor(canvasCoord.y / this.canvas.getCellHeight()));
+
+		this.canvas.canvasMouseMove(pixelCoord);
 	}.bind(this));
-	
-	$(this.canvas.canvasHTML).mouseleave(function() {
-	
-		if (this.selectedTool == null){
-			return;
-		}
-		this.selectedTool.mode = 3;
-		
-		if (typeof(this.selectedTool.canvasMouseLeave) != "function"){
-			return;
-		}
-		
-		this.selectedTool.canvasMouseLeave();
+
+	$(this.canvas.getCanvasHTML()).mouseleave(function() {
+
+		this.canvas.canvasMouseLeave();
+
 	}.bind(this));
-	
+
 	$(window).keydown(function(eventObject) {
-		if (this.selectedTool == null){
-			return;
-		}
-		if (typeof(this.selectedTool.keyDown) != "function"){
-			return;
-		}
-		this.selectedTool.keyDown(eventObject);
+
+		this.canvas.keyDown(eventObject);
+
 	}.bind(this));
-	
+
 	$(document).keypress(function(eventObject) {
-		debug("doc.keypress");
-		if (this.selectedTool == null){
-			return;
-		}
-		if (typeof(this.selectedTool.keyPress) != "function"){
-			return;
-		}
-		this.selectedTool.keyPress(eventObject);
-	});
-	
+
+		this.canvas.keyPress(eventObject);
+	}.bind(this));
+
 	$(window).keyup(function(eventObject) {
-		if (this.selectedTool == null){
-			return;
-		}
-		if (typeof(this.selectedTool.keyUp) != "function"){
-			return;
-		}
-		this.selectedTool.keyUp(eventObject);
+
+		this.canvas.keyUp(eventObject);
+
 	}.bind(this));
 };
 
 MouseController.prototype.setActiveElement = function(elementId){
-	// toggle active button (visual feature only)		
+	// toggle active button (visual feature only)
 	$("#tools > button.tool").removeClass("active");
 	$("#" + elementId).toggleClass("active");
 }
@@ -1189,17 +1266,17 @@ MouseController.prototype.setActiveElement = function(elementId){
 function getCanvasCoord(canvas,mouseEvent){
 	var x;
 	var y;
-	var parent = $(canvas).parent(); 
+	var parent = $(canvas).parent();
 	var xp = parent? parent.scrollLeft() : 0;
 	var yp = parent? parent.scrollTop() : 0;
-	if (mouseEvent.pageX || mouseEvent.pageY) { 
+	if (mouseEvent.pageX || mouseEvent.pageY) {
 		x = mouseEvent.pageX + xp;
 		y = mouseEvent.pageY + yp;
 	}
-	else { 
-		x = mouseEvent.clientX + document.body.scrollLeft + document.documentElement.scrollLeft + xp; 
-		y = mouseEvent.clientY + document.body.scrollTop + document.documentElement.scrollTop + yp; 
-	} 
+	else {
+		x = mouseEvent.clientX + document.body.scrollLeft + document.documentElement.scrollLeft + xp;
+		y = mouseEvent.clientY + document.body.scrollTop + document.documentElement.scrollTop + yp;
+	}
 	x -= canvas.offsetLeft;
 	y -= canvas.offsetTop;
 	return new Coord(x,y);
@@ -1211,25 +1288,60 @@ function getZoomedCanvasCoord(coord,zoom){
 
 // ---------------------------------------------------- INIT ------------------------------------------------------- //
 
+/*
+ * Initialize canvas and use the Decorator Pattern to add more features (single responsability chain).
+ * In order to implement Decorator Pattern, I use jquery to extend objects ($.extend()).
+ * Since the wrapper mechanism is emulated (based on copying object properties), I have to make use of this.$ variable to reference the real 'this'.
+ */
 function init(){
+
+	var grid = new Grid();
+
 	// initialize canvas
-	var canvas = new Canvas(new Grid());
-	
-	// initialize tools
-	var tools = {};
-	tools["select"] = new CanvasTool(canvas);
-	tools["box"] = new BoxDrawer(canvas.grid);
-	tools["text"] = new TextTool(canvas.grid);
-	tools["clear"] = new ClearTool(canvas.grid);
-	tools["export"] = new ExportTool(canvas);
+	var canvas = delegateProxy(new ASCIICanvas(document.getElementById("ascii-canvas"),grid),"grid");
+
+	// add click, keyboard & mouse capabilities
+	canvas = delegateProxy(new ToolableCanvas(canvas), "canvas");
+
+	// add cursor decorator
+	canvas = delegateProxy(new PointerDecorator(canvas, "pointer-button"), "canvas");
+
+	// add ascii drawing capabilities
+	canvas = delegateProxy(new DrawableCanvas(canvas), "canvas");
+
+	// add ascii drawing capabilities with style
+	canvas = delegateProxy(new StylableCanvas(canvas), "canvas");
+
+	// add char writing capabilities
+	canvas = delegateProxy(new CharWriterDecorator(canvas), "canvas");
+
+	// add clear canvas capabilities
+	canvas = delegateProxy(new ClearCanvasTool(canvas, "clear-button"), "canvas");
+
+	// add set/edit text capabilities
+	canvas = delegateProxy(new TextEditTool(canvas, "text-button"), "canvas");
+
+	// add draw box capabilities
+	canvas = delegateProxy(new BoxDrawerTool(canvas, "box-button"), "canvas");
+
+	// add export capabilities
+	canvas = delegateProxy(new ExportASCIITool(canvas, "export-button"), "canvas");
 
 	// initialize mouse controller
-	new MouseController(canvas, tools);
-	
+	new MouseController(canvas);
+
 	// visual only: adapt canvas container
-	$("#canvas-container").width(canvas.canvasHTML.width);
-	
-	canvas.animate();
+	$("#canvas-container").width(canvas.getWidth());
+
+	animate(canvas);
 }
 
-
+function animate(canvas){
+	if (canvas.hasChanged()){
+		canvas.redraw();
+		canvas.setChanged(false);
+	}
+	window.requestAnimationFrame(function() {
+		animate(canvas);
+	});
+}

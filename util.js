@@ -257,3 +257,22 @@ function paint(ctx,font,cellWidth){
 	ctx.fillText('+--+--+ █ ██', 0,cellHeight*6-cellDescend);
 	ctx.fillText('+--+--+ █ ██', 0,cellHeight*7-cellDescend);
 }
+
+function delegateProxy(target,delegateName){
+	// proxy handler
+	var proxyHandler = {
+		get(target, propKey, receiver) {
+			const realTarget = target[propKey]? target : target[delegateName]? target[delegateName] : undefined; 
+			const prop = realTarget? realTarget[propKey] : undefined;
+			if (typeof(prop) != "function"){
+				return prop;
+			}
+			return function (...args) {
+				let result = prop.apply(realTarget, args);
+				// console.log(propKey + JSON.stringify(args) + ' -> ' + JSON.stringify(result));
+				return result;
+			};
+        }
+	};
+	return new Proxy(target,proxyHandler);
+}

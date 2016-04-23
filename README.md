@@ -6,7 +6,7 @@ ASCII Editor
 The basic idea of this project is to have an editor to design schemas, tables, drawings, etc. for making technical documentation that can be
 used into the ubiquitous README files.
 
-There is already some tools in internet like the awesome asciiflow, but I need something more professional and the asciiflow tool is not open source; 
+There is already some tools in internet like the awesome asciiflow, but I need something more professional and the asciiflow tool is not open source;
 so I have decided to cook my own stuff and share it with the world :)
 
 
@@ -16,7 +16,7 @@ Try it!
 * http://www.andresoviedo.org/ascii-editor
 
 
-News (21/04/2016)
+News (23/04/2016)
 =================
 
 - Working on it...
@@ -28,6 +28,7 @@ Features already implemented
 - HTML canvas technology
 - JavaScript technology. JQuery framework
 - Object oriented design
+- Design patterns: Decorator Pattern, Layers Pattern, Proxy Pattern
 - Mouse controller
 - Canvas grid
 - Resizable canvas
@@ -37,15 +38,15 @@ Features already implemented
 - Clear canvas
 - Storage support to resume work
 - Select different draw styles
-- Blinking cursor
+- Blinking cursor & pointer
 - Arrow keys handle the cursor
-- Export ASCII
+- Export to ASCII
 
 
 Still to be implemented
 =======================
 
-- refactor tools to implement decorator pattern
+- redesign tools to observer pattern
 - implement chars library
 - trim export (remove unnecessary lines, columns)
 - undo / redo
@@ -77,4 +78,4 @@ You are free to use this program while you keep this file and the authoring comm
 Contact Information
 ===================
 
-http://www.andresoviedo.org 
+http://www.andresoviedo.org
