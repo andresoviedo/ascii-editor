@@ -27,33 +27,33 @@ Features already implemented
 
 - HTML canvas technology
 - JavaScript technology. JQuery framework
-- Object oriented design
-- Design patterns: Decorator Pattern, Layers Pattern, Proxy Pattern
+- Object oriented design. Design patterns: Decorator Pattern, Layers Pattern, Proxy Pattern
 - Mouse controller
-- Canvas grid
 - Resizable canvas
 - Zoomable canvas
-- Draw boxes
-- Draw/Edit text (2 ways: online & using input text widget)
+- Canvas grid
+- Canvas cursor & pointer
+- Arrow keys controls the canvas cursor
+- Drag mouse to select area & move it
+- Write/Edit text (2 ways: online & using input text widget)
 - Clear canvas
 - Storage support to resume work
-- Select different draw styles
-- Blinking cursor & pointer
-- Arrow keys handle the cursor
+- Draw boxes
+- Draw with different line styles
 - Export to ASCII
 
 
 Still to be implemented
 =======================
 
+- select shape / move shape
+- resize shape
+- resize shape if writing text inside
 - redesign tools to observer pattern
 - implement chars library
 - trim export (remove unnecessary lines, columns)
 - undo / redo
-- select object / move object
-- resize object
-- auto-resizable boxes based on text length?
-- import
+- import ascii
 - cut / copy / paste
 - implement connectors
 - implement tables

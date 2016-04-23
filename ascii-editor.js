@@ -71,6 +71,12 @@ Coord.prototype = {
 	, add : function(a) {
 		return new Coord(this.x + a.x, this.y + a.y);
 	}
+	, equals : function(other){
+		return this.x == other.x && this.y == other.y;
+	}
+	, substract : function(other){
+		return new Coord(this.x - other.x, this.y - other.y);
+	}
 }
 
 //------------------------------------------------- PIXEL CLASS -----------------------------------------------------//
@@ -164,6 +170,9 @@ Grid.prototype = {
 	}
 	, stackPixel : function(coord, value) {
 		var pixel = this.getPixel(coord);
+		if (pixel == undefined){
+			return;
+		}
 		this.pixelsStack.push(new PixelPosition(coord, pixel));
 		pixel.tempValue = value;
 		this.changed = true;
@@ -176,7 +185,7 @@ Grid.prototype = {
 	/**
 	 * Clears the stack so we have no temporary pixels to be drawn
 	 */
-	, resetStack : function() {
+	, rollback : function() {
 		for (var b in this.pixelsStack) {
 			this.pixelsStack[b].pixel.tempValue = null;
 		}
@@ -215,9 +224,9 @@ Grid.prototype = {
 		for (var b in this.pixelsStack) {
 			var pixel = this.pixelsStack[b].pixel;
 			var newValue = pixel.getValue();
-			pixel.value = newValue == " "? null: newValue;
+			pixel.value = newValue == " " || newValue == ""? null: newValue;
 		}
-		this.resetStack();
+		this.rollback();
 
 		// save data to local storage
 		if(typeof(Storage) !== "undefined") {
@@ -283,11 +292,11 @@ ASCIICanvas.prototype = {
 		this.getCanvasContext().fillText(text,canvasCoord.x,canvasCoord.y);
 	}
 	, mouseEnter : function() { }
-	, canvasMouseDown : function(coord) {
+	, mouseDown : function(coord) {
 		this.startCoord = coord;
 	}
-	, canvasMouseMove : function(coord) { }
-	, canvasMouseUp : function() { }
+	, mouseMove : function(coord) { }
+	, mouseUp : function(coord) { }
 	, canvasMouseLeave : function() { }
 	, keyUp : function(eventObject){ }
 	, keyDown : function(eventObject){
@@ -369,12 +378,12 @@ ASCIICanvas.prototype = {
 		// print something
 		// paint(this.canvasContext,this.font,this.cellWidth);
 
-		// draw selection
+		// draw uncommited changes
 		this.canvasContext.fillStyle = "#669999";
 		for (col=0; col<this.grid.cols; col++){
 			for (row=0; row<this.grid.rows; row++){
 				var pixel = this.grid.getPixel(new Coord(col, row));
-				if (pixel != null && pixel.tempValue != null && pixel.tempValue != "" && pixel.tempValue != " "){
+				if (pixel.tempValue != null){
 					this.canvasContext.fillRect(col*this.cellWidth,row*this.cellHeight,this.cellWidth,this.cellHeight);
 				}
 			}
@@ -409,6 +418,17 @@ function Box(coordA, coordB) {
 	this.minY = Math.min(coordA.y, coordB.y);
 	this.maxX = Math.max(coordA.x, coordB.x);
 	this.maxY = Math.max(coordA.y, coordB.y);
+	this.min = new Coord(this.minX, this.minY);
+	this.max = new Coord(this.maxX, this.maxY);
+}
+
+Box.prototype = {
+	containsCoord : function(coord){
+		return coord && coord.x >= this.minX && coord.x <= this.maxX && coord.y >= this.minY && coord.y <= this.maxY;
+	}
+	, add : function(coord){
+		return new Box(this.min.add(coord),this.max.add(coord));
+	}
 }
 
 /**
@@ -762,10 +782,14 @@ StylableCanvas.prototype = {
 function PointerDecorator(canvas, toolId){
 	this.class = "PointerDecorator";
 	this.canvas = canvas;
-	this.toolId;
+	this.toolId = toolId;
 	this.selectedCell = null;
 	this.pointerCell = null;
 	this.drawSelectedCell = false;
+	// move boxes
+	this.temporalBox = null;
+	this.finalBox = null;
+	this.finalMove = null;
 	this.changed = false;
 }
 
@@ -810,19 +834,29 @@ PointerDecorator.prototype = {
 		this.setDrawSelectedCell(shouldDraw);
 		this.changed = this.changed || changed;
 	}
-	, canvasMouseMove : function(coord){
-		this.canvas.canvasMouseMove(coord);
-		this.setPointerCell(coord);
+	, mouseDown : function(coord){
+		this.canvas.mouseDown(coord);
+		this.mouseStatus = "down";
+		this.setSelectedCell(coord);
+		this.selectCells(coord);
 		this.changed = true;
 	}
-	, canvasMouseDown : function(coord){
-		this.canvas.canvasMouseDown(coord);
-		this.setSelectedCell(coord);
+	, mouseMove : function(coord){
+		this.canvas.mouseMove(coord);
+		this.mouseStatus = this.mouseStatus == "up" || this.mouseStatus == "hover"? "hover" : "moving";
+		this.setPointerCell(coord);
+		this.selectCells(coord);
 		this.changed = true;
+	}
+	, mouseUp : function(coord){
+		this.canvas.mouseUp(coord);
+		this.mouseStatus = "up";
+		this.selectCells(coord);
 	}
 	, canvasMouseLeave : function(){
 		this.canvas.canvasMouseLeave();
 		this.setPointerCell(null);
+		this.canvas.rollback();
 		this.changed = true;
 	}
 	/**
@@ -872,6 +906,92 @@ PointerDecorator.prototype = {
   		this.setSelectedCell(this.getSelectedCell().add(bottomCoord));
   	}
   	this.changed = true;
+	}
+	,selectCells(coord){
+		if (this.canvas.getActiveTool() != this.toolId) return;
+		if (this.mouseStatus == "hover") return;
+		// user finalized the selection
+		if (this.mouseStatus == "up"){
+			// only do it once (user may click several times on the final selection)
+			if (this.finalBox == null){
+				this.finalBox = this.temporalBox;
+				this.temporalBox = null;
+			} else if (this.finalMove != null){
+				// user thas completed moving the selection
+				this.canvas.commit();
+				this.finalMove = null;
+				this.finalBox = null;
+				this.temporalBox = null;
+			}
+			return;
+		}
+		// user is selecting, either to start a new selection or to move selection
+		if (this.mouseStatus == "down"){
+			// check if user is starting new selection
+ 			if (this.finalBox == null || !this.finalBox.containsCoord(coord)){
+				this.finalBox = null;
+				this.temporalBox = null;
+				this.canvas.rollback();
+			}
+			// user is going to move the selection
+			return;
+		}
+
+		if (this.mouseStatus == "moving") {
+			// user is moving selection
+			if (this.finalBox != null && this.finalBox.containsCoord(coord)	|| this.finalMove != null && this.finalMove.containsCoord(coord)){
+				// move implementation
+				this.canvas.rollback();
+				// stack selection & stack the pixels where we are moving the pixels
+				var diffCoord = coord.substract(this.getSelectedCell());
+				for (minX = this.finalBox.minX; minX <= this.finalBox.maxX; minX++) {
+					for (minY = this.finalBox.minY; minY <= this.finalBox.maxY; minY++) {
+						// get pixel we are moving
+						pixelCoord = new Coord(minX, minY);
+						pixelValue = this.canvas.getPixel(pixelCoord).getValue();
+						this.canvas.stackPixel(pixelCoord, " ");
+					}
+				}
+				for (minX = this.finalBox.minX; minX <= this.finalBox.maxX; minX++) {
+					for (minY = this.finalBox.minY; minY <= this.finalBox.maxY; minY++) {
+						// get pixel we are moving
+						pixelCoord = new Coord(minX, minY);
+						// get current pixel value
+						pixelValue = this.canvas.getPixel(pixelCoord).value;
+						// get pixel we are overwriting
+						pixelCoord2 = pixelCoord.add(diffCoord);
+						// get pixel value we are overwriting
+						pixelValue2 = this.canvas.getPixel(pixelCoord2).getValue();
+						// stack the pixel we are overwriting
+						this.canvas.stackPixel(pixelCoord2, pixelValue != null? pixelValue : pixelValue2 != null? pixelValue2 : "");
+					}
+				}
+				this.finalMove = this.finalBox.add(diffCoord);
+				return;
+			}
+			// user is selecting...
+			// check we are selecting at least 1 pixel
+			if (this.getSelectedCell() == null || this.getSelectedCell().equals(coord)){
+				if (this.temporalBox != null){
+					this.temporalBox = null;
+					this.canvas.rollback();
+				}
+				return;
+			}
+			// calculate box so we know from where to where we should draw the line
+			this.canvas.rollback();
+			this.temporalBox = new Box(this.getSelectedCell(), coord);
+
+			// stack non-empty pixel within the selected square
+			for (minX = this.temporalBox.minX; minX <= this.temporalBox.maxX; minX++) {
+				for (minY = this.temporalBox.minY; minY <= this.temporalBox.maxY; minY++) {
+					pixelCoord = new Coord(minX, minY);
+					pixelValue = this.canvas.getPixel(pixelCoord).getValue();
+					this.canvas.stackPixel(pixelCoord, pixelValue != null? pixelValue : " ");
+				}
+			}
+		}
+		this.changed = true;
 	}
 }
 
@@ -1003,7 +1123,7 @@ TextEditTool.prototype = {
 		this.canvas.click(elementId);
 		this.close();
 	}
-	, canvasMouseDown : function(startCoord) {
+	, mouseDown : function(startCoord) {
 
 		if (this.canvas.getActiveTool() == this.toolId) {
 
@@ -1025,7 +1145,7 @@ TextEditTool.prototype = {
 		    });
 	    }
 
-		return this.canvas.canvasMouseDown(startCoord);
+		return this.canvas.mouseDown(startCoord);
 	}
 	, refresh : function() {
 		var newValue = $("#text-input").val();
@@ -1037,7 +1157,7 @@ TextEditTool.prototype = {
 	, close : function() {
 		$("#text-input").val("");
 		$("#text-widget").hide();
-		this.canvas.getGrid().resetStack();
+		this.canvas.getGrid().rollback();
 	}
 	, cursor : function() {
   		return "text";
@@ -1059,21 +1179,21 @@ function BoxDrawerTool(canvas, toolId) {
 }
 
 BoxDrawerTool.prototype = {
-	canvasMouseDown : function(coord) {
-		this.canvas.canvasMouseDown(coord);
+	mouseDown : function(coord) {
+		this.canvas.mouseDown(coord);
 		this.mouseStatus = "down";
 		this.startCoord = coord;
 	}
-	,canvasMouseMove : function(coord) {
+	,mouseMove : function(coord) {
 		if (this.canvas.getActiveTool() != this.toolId){
-			return this.canvas.canvasMouseMove(coord);
+			return this.canvas.mouseMove(coord);
 		}
 		this.endCoord = coord;
 
 		// check whether the user has the mouse down
 		if (this.mouseStatus == "down"){
 			// reset stack so we start drawing box every time the user moves the mouse
-			this.canvas.getGrid().resetStack();
+			this.canvas.getGrid().rollback();
 			// draw horizontal line first, then vertical line
 			this.canvas.drawLine(this.startCoord, coord, true, '+');
 			// draw vertical line first, then horizontal line
@@ -1085,15 +1205,15 @@ BoxDrawerTool.prototype = {
 	/*
  	 * When the user releases the mouse, we know the second coordinate so we draw the box
  	 */
-	, canvasMouseUp : function() {
+	, mouseUp : function(coord) {
 		if (this.canvas.getActiveTool() != this.toolId){
-			return this.canvas.canvasMouseUp();
+			return this.canvas.mouseUp(coord);
 		}
 		if (this.mouseStatus == "down"){
 			// user has the mouse-up (normal situation)
 		} else{
 			// if user is leaving the canvas, reset stack
-			this.canvas.getGrid().resetStack();
+			this.canvas.getGrid().rollback();
 		}
 		// perform changes
 		this.canvas.getGrid().commit();
@@ -1110,7 +1230,7 @@ BoxDrawerTool.prototype = {
 	, canvasMouseLeave : function() {
 		return this.canvas.canvasMouseLeave();
 		if (this.canvas.getActiveTool() == this.toolId){
-			this.canvas.getGrid().resetStack();
+			this.canvas.getGrid().rollback();
 		}
 		this.mouseStatus = "out";
 	}
@@ -1160,130 +1280,95 @@ function MouseController(canvas) {
 	this.canvas = canvas;
 	this.init();
 	this.setActiveElement("select-button");
+	this.lastPointerCoord = null;
 }
 
-MouseController.prototype.init = function() {
-	$("#tools > button.tool").click(function(eventObject) {
-
-		// get id of clicked button
-		elementId = eventObject.target.id;
-
-		// visual effect: set active button
-		this.setActiveElement(elementId);
-
-		// invoke tool
-		this.canvas.click(elementId);
-
-	}.bind(this));
-
-	// bind mousewheel for zooming into the canvas
-	$(this.canvas.getCanvasHTML()).bind("mousewheel", function(eventObject) {
-		var newZoom = this.canvas.zoom * (eventObject.originalEvent.wheelDelta > 0 ? 1.1 : 0.9);
-		newZoom = Math.max(Math.min(newZoom, 4), 1);
-		this.canvas.setZoom(newZoom);
-		this.canvas.resize();
-		$("#canvas-container").width(this.canvas.getCanvasHTML().width);
-		return false;
-	}.bind(this));
-
-	// bind mouse action for handling the drawing
-	$(this.canvas.getCanvasHTML()).mousedown(function(mouseEvent) {
-
-		// these are the client coordinates
-		clickCoords = new Coord(mouseEvent.clientX, mouseEvent.clientY);
-
-		// get client relative coordinates for canvas element
-		var canvasCoord = getCanvasCoord(this.canvas.getCanvasHTML(),mouseEvent);
-
-		// get coordinates relative to actual zoom
-		canvasCoord = getZoomedCanvasCoord(canvasCoord,this.canvas.getZoom());
-
-		// get pixel located at the specified coordinate
-		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.getCellWidth()), Math.floor(canvasCoord.y / this.canvas.getCellHeight()));
-
-		// invoke tool to do its job
-		this.canvas.canvasMouseDown(pixelCoord);
-
-	}.bind(this));
-
-	$(this.canvas.getCanvasHTML()).mouseup(function() {
-
-		this.canvas.canvasMouseUp();
-
-	}.bind(this));
-
-	$(this.canvas.getCanvasHTML()).mouseenter(function() {
-
-		this.canvas.getCanvasHTML().style.cursor = this.canvas.cursor();
-
-		this.canvas.mouseEnter();
-
-	}.bind(this));
-
-	$(this.canvas.getCanvasHTML()).mousemove(function(mouseEvent) {
-
+MouseController.prototype = {
+	init : function() {
+		$("#tools > button.tool").click(function(eventObject) {
+			// get id of clicked button
+			elementId = eventObject.target.id;
+			// visual effect: set active button
+			this.setActiveElement(elementId);
+			// invoke tool
+			this.canvas.click(elementId);
+		}.bind(this));
+		// bind mousewheel for zooming into the canvas
+		$(this.canvas.getCanvasHTML()).bind("mousewheel", function(eventObject) {
+			var newZoom = this.canvas.zoom * (eventObject.originalEvent.wheelDelta > 0 ? 1.1 : 0.9);
+			newZoom = Math.max(Math.min(newZoom, 4), 1);
+			this.canvas.setZoom(newZoom);
+			this.canvas.resize();
+			$("#canvas-container").width(this.canvas.getCanvasHTML().width);
+			return false;
+		}.bind(this));
+		// bind mouse action for handling the drawing
+		$(this.canvas.getCanvasHTML()).mousedown(function(eventObject) {
+			// TODO: move coords translation to canvas class
+			clickCoords = new Coord(eventObject.clientX, eventObject.clientY);
+			this.lastPointerCoord = this.getCanvasCoord(eventObject);
+			this.canvas.mouseDown(this.lastPointerCoord);
+		}.bind(this));
+		$(this.canvas.getCanvasHTML()).mouseup(function() {
+			this.canvas.mouseUp(this.lastPointerCoord);
+		}.bind(this));
+		$(this.canvas.getCanvasHTML()).mouseenter(function() {
+			this.canvas.getCanvasHTML().style.cursor = this.canvas.cursor();
+			this.canvas.mouseEnter();
+		}.bind(this));
+		$(this.canvas.getCanvasHTML()).mousemove(function(eventObject) {
+			this.lastPointerCoord = this.getCanvasCoord(eventObject);
+			this.canvas.mouseMove(this.lastPointerCoord);
+		}.bind(this));
+		$(this.canvas.getCanvasHTML()).mouseleave(function() {
+			this.canvas.canvasMouseLeave();
+		}.bind(this));
+		$(window).keydown(function(eventObject) {
+			this.canvas.keyDown(eventObject);
+		}.bind(this));
+		$(document).keypress(function(eventObject) {
+			this.canvas.keyPress(eventObject);
+		}.bind(this));
+		$(window).keyup(function(eventObject) {
+			this.canvas.keyUp(eventObject);
+		}.bind(this));
+	}
+	,setActiveElement : function(elementId){
+		// toggle active button (visual feature only)
+		$("#tools > button.tool").removeClass("active");
+		$("#" + elementId).toggleClass("active");
+	}
+	, getCanvasCoord(mouseEvent){
 		// get canvas relative coordinates
-		var canvasCoord = getCanvasCoord(this.canvas.getCanvasHTML(),mouseEvent);
-
-		canvasCoord = getZoomedCanvasCoord(canvasCoord,this.canvas.getZoom());
-
+		canvasHTMLCoord = this.getCanvasHTMLCoord(mouseEvent);
+		// remove zoom
+		canvasHTMLUnZoomedCoord = this.getUnZoomedCoord(canvasHTMLCoord,this.canvas.getZoom());
 		// get pixel located at the specified coordinate
-		var pixelCoord = new Coord(Math.floor(canvasCoord.x / this.canvas.getCellWidth()), Math.floor(canvasCoord.y / this.canvas.getCellHeight()));
-
-		this.canvas.canvasMouseMove(pixelCoord);
-	}.bind(this));
-
-	$(this.canvas.getCanvasHTML()).mouseleave(function() {
-
-		this.canvas.canvasMouseLeave();
-
-	}.bind(this));
-
-	$(window).keydown(function(eventObject) {
-
-		this.canvas.keyDown(eventObject);
-
-	}.bind(this));
-
-	$(document).keypress(function(eventObject) {
-
-		this.canvas.keyPress(eventObject);
-	}.bind(this));
-
-	$(window).keyup(function(eventObject) {
-
-		this.canvas.keyUp(eventObject);
-
-	}.bind(this));
-};
-
-MouseController.prototype.setActiveElement = function(elementId){
-	// toggle active button (visual feature only)
-	$("#tools > button.tool").removeClass("active");
-	$("#" + elementId).toggleClass("active");
-}
-
-function getCanvasCoord(canvas,mouseEvent){
-	var x;
-	var y;
-	var parent = $(canvas).parent();
-	var xp = parent? parent.scrollLeft() : 0;
-	var yp = parent? parent.scrollTop() : 0;
-	if (mouseEvent.pageX || mouseEvent.pageY) {
-		x = mouseEvent.pageX + xp;
-		y = mouseEvent.pageY + yp;
+		gridCoord = new Coord(Math.floor(canvasHTMLUnZoomedCoord.x / this.canvas.getCellWidth()), Math.floor(canvasHTMLUnZoomedCoord.y / this.canvas.getCellHeight()));
+		return gridCoord;
 	}
-	else {
-		x = mouseEvent.clientX + document.body.scrollLeft + document.documentElement.scrollLeft + xp;
-		y = mouseEvent.clientY + document.body.scrollTop + document.documentElement.scrollTop + yp;
+	, getCanvasHTMLCoord : function(mouseEvent){
+		var x;
+		var y;
+		var parent = $(this.canvas.getCanvasHTML()).parent();
+		var xp = parent? parent.scrollLeft() : 0;
+		var yp = parent? parent.scrollTop() : 0;
+		if (mouseEvent.pageX || mouseEvent.pageY) {
+			x = mouseEvent.pageX + xp;
+			y = mouseEvent.pageY + yp;
+		}
+		else {
+			x = mouseEvent.clientX + document.body.scrollLeft + document.documentElement.scrollLeft + xp;
+			y = mouseEvent.clientY + document.body.scrollTop + document.documentElement.scrollTop + yp;
+		}
+		x -= this.canvas.getCanvasHTML().offsetLeft;
+		y -= this.canvas.getCanvasHTML().offsetTop;
+		return new Coord(x,y);
 	}
-	x -= canvas.offsetLeft;
-	y -= canvas.offsetTop;
-	return new Coord(x,y);
-}
+	, getUnZoomedCoord : function(coord,zoom){
+		return new Coord(coord.x/zoom,coord.y/zoom);
+	}
 
-function getZoomedCanvasCoord(coord,zoom){
-	return new Coord(coord.x/zoom,coord.y/zoom);
 }
 
 // ---------------------------------------------------- INIT ------------------------------------------------------- //
