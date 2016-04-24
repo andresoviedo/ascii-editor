@@ -16,7 +16,7 @@ Try it!
 * http://www.andresoviedo.org/ascii-editor
 
 
-News (23/04/2016)
+News (24/04/2016)
 =================
 
 - Working on it...
@@ -34,11 +34,12 @@ Features already implemented
 - Canvas grid
 - Canvas cursor & pointer
 - Arrow keys controls the canvas cursor
-- Drag mouse to select area & move it
+- Drag mouse to select area,clear or move it
 - Write/Edit text (2 ways: online & using input text widget)
+- Draw boxes & resize them
+- Move single lines
 - Clear canvas
 - Storage support to resume work
-- Draw boxes
 - Draw with different line styles
 - Export to ASCII
 
@@ -47,7 +48,7 @@ Still to be implemented
 =======================
 
 - select shape / move shape
-- resize shape
+- fix keyboard encoding when writing chars
 - resize shape if writing text inside
 - redesign tools to observer pattern
 - implement chars library
@@ -67,6 +68,12 @@ Alternatives
 * ascii-flow: http://asciiflow.com/
 * sixteencolors: http://draw.sixteencolors.net
 * ascii-tables: https://ozh.github.io/ascii-tables/
+
+
+Testing
+=======
+
+* Tested in Chrome Linux 50.0.2661.75 beta (64-bit)
 
 
 Final Notes
