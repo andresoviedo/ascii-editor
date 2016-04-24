@@ -256,7 +256,7 @@ Grid.prototype = {
 				// get pixel value we are overwriting
 				pixelValue2 = this.getPixel(pixelCoord2).getValue();
 				// stack the pixel we are overwriting
-				this.stackPixel(pixelCoord2, pixelValue != null? pixelValue : pixelValue2 != null? pixelValue2 : "");
+				this.stackPixel(pixelCoord2, pixelValue != null? pixelValue : pixelValue2 != null? pixelValue2 : " ");
 			}
 		}
 	}
@@ -391,7 +391,7 @@ ASCIICanvas.prototype = {
 	}
 	, redraw : function() {
 
-		// console.log("Redrawing canvas... zoom '"+this.zoom+"'");
+		console.log("Redrawing canvas... zoom '"+this.zoom+"'");
 
 		this.canvasContext.setTransform(1, 0, 0, 1, 0, 0);
 		this.canvasContext.scale(this.zoom, this.zoom);
@@ -677,6 +677,40 @@ DrawableCanvas.prototype = {
 			}
 	  }
 	}
+	, detectEndPoints : function(coord){
+		endPointsInfo = [];
+		for (direction in contextCoords) {
+			endPoints = this.getFinalCoords(coord, contextCoords[direction]);
+			for (endPointIndex in endPoints) {
+				endPoint = endPoints[endPointIndex];
+				isHorizontal = contextCoords[direction].x != 0;
+				startWithArrow = arrowChars1.indexOf(this.canvas.getPixel(coord).getValue()) != -1;
+				endWithArrow = arrowChars1.indexOf(this.canvas.getPixel(endPoint).getValue()) != -1;
+				contextLength = this.getPixelContext(endPoint).getLength();
+				endPointInfo = new EndPointInfo(endPoint, contextLength, isHorizontal, startWithArrow, endWithArrow);
+				endPointsInfo.push(endPointInfo);
+				if (length == 1) {
+					console.log("Found simple endpoint: "+endPointInfo);
+				} else {
+					console.log("Found complex endpoint: "+endPointInfo);
+					endPointInfo.childEndpoints = [];
+					for (var direction2 in contextCoords) {
+						// dont go backwards or in the same direction
+						if (contextCoords[direction].add(contextCoords[direction2]).length() == 0) continue;
+						if (contextCoords[direction].add(contextCoords[direction2]).length() == 2) continue;
+						var endPoints2 = this.getFinalCoords(endPoint, contextCoords[direction2]);
+						if (endPoints2.length > 0){
+							contextLength2 = this.getPixelContext(endPoints2[0]).getLength();
+							ep2 = new EndPointInfo(endPoints2[0], contextLength2, isHorizontal, startWithArrow, -1 != arrowChars1.indexOf(this.canvas.getPixel(endPoints2[0]).getValue()), endWithArrow);
+							endPointInfo.childEndpoints.push(ep2);
+							console.log("Found child endpoint: "+ep2);
+						}
+					}
+				}
+			}
+		}
+		return endPointsInfo;
+	}
 }
 
 // ----------------------------------------------- STYLE DECORATOR ------------------------------------------------- //
@@ -872,10 +906,6 @@ function PointerDecorator(canvas, toolId){
 	this.selectedCell = null;
 	this.pointerCell = null;
 	this.drawSelectedCell = false;
-	// move boxes
-	this.selectionArea = null;
-	this.finalBox = null;
-	this.finalMove = null;
 	this.changed = false;
 }
 
@@ -891,13 +921,13 @@ PointerDecorator.prototype = {
   		this.selectedCell = coord;
   	}
 	}
-	, setChanged : function(changed){
-		this.canvas.setChanged(changed);
-		this.changed = changed;
-	}
 	, hasChanged : function(){
 		this.refresh();
 		return this.canvas.hasChanged() || this.changed;
+	}
+	, setChanged : function(changed){
+		this.canvas.setChanged(changed)
+		this.changed = changed;
 	}
 	, redraw : function(){
 		this.canvas.redraw();
@@ -914,8 +944,7 @@ PointerDecorator.prototype = {
  	 * implementation of intermitent cursor
  	 */
 	, refresh : function(){
-		if (this.getSelectedCell() == null) return false;
-		var shouldDraw = new Date().getMilliseconds() % 1000 < 500;
+		var shouldDraw = this.getSelectedCell() != null && new Date().getMilliseconds() % 1000 < 500;
 		var changed = shouldDraw != this.getDrawSelectedCell();
 		this.setDrawSelectedCell(shouldDraw);
 		this.changed = this.changed || changed;
@@ -924,20 +953,17 @@ PointerDecorator.prototype = {
 		this.canvas.mouseDown(coord);
 		this.mouseStatus = "down";
 		this.setSelectedCell(coord);
-		this.selectArea(coord);
 		this.changed = true;
 	}
 	, mouseMove : function(coord){
 		this.canvas.mouseMove(coord);
 		this.mouseStatus = this.mouseStatus == "up" || this.mouseStatus == "hover"? "hover" : "moving";
 		this.setPointerCell(coord);
-		this.selectArea(coord);
 		this.changed = true;
 	}
 	, mouseUp : function(coord){
 		this.canvas.mouseUp(coord);
 		this.mouseStatus = "up";
-		this.selectArea(coord);
 	}
 	, canvasMouseLeave : function(){
 		this.canvas.canvasMouseLeave();
@@ -1005,6 +1031,53 @@ PointerDecorator.prototype = {
   	}
   	this.changed = true;
 	}
+}
+
+// ---------------------------------------------- MOVE FEATURE ----------------------------------------------------- //
+
+function SelectTool(canvas, toolId){
+	this.class = "SelectTool";
+	this.canvas = canvas;
+	this.toolId = toolId;
+	this.startCoord = null;
+	this.changed = false;
+	// move boxes
+	this.selectionArea = null;
+	this.finalBox = null;
+	this.finalMove = null;
+}
+
+SelectTool.prototype = {
+
+	hasChanged : function(){
+		return this.canvas.hasChanged() || this.changed;
+	}
+	, setChanged : function(changed){
+		this.canvas.setChanged(changed)
+		this.changed = changed;
+	}
+	, mouseDown : function(coord){
+		this.canvas.mouseDown(coord);
+		this.startCoord = coord;
+		this.mouseStatus = "down";
+		this.selectArea(coord);
+		this.changed = true;
+	}
+	, mouseMove : function(coord){
+		this.canvas.mouseMove(coord);
+		this.mouseStatus = this.mouseStatus == "up" || this.mouseStatus == "hover"? "hover" : "moving";
+		this.selectArea(coord);
+		this.changed = true;
+	}
+	, mouseUp : function(coord){
+		this.canvas.mouseUp(coord);
+		this.mouseStatus = "up";
+		this.selectArea(coord);
+	}
+	, canvasMouseLeave : function(){
+		this.canvas.canvasMouseLeave();
+		this.canvas.rollback();
+	}
 	,selectArea(coord){
 		if (this.canvas.getActiveTool() != this.toolId) return;
 		if (this.mouseStatus == "hover") return;
@@ -1041,7 +1114,7 @@ PointerDecorator.prototype = {
 				// move implementation
 				this.canvas.rollback();
 				// calculate movement difference
-				var diffCoord = coord.substract(this.getSelectedCell());
+				var diffCoord = coord.substract(this.startCoord);
 				// move selected area
 				this.canvas.moveArea(this.finalBox, diffCoord);
 				// update final box
@@ -1050,7 +1123,7 @@ PointerDecorator.prototype = {
 			}
 			// user is selecting...
 			// check we are selecting at least 1 pixel
-			if (this.getSelectedCell() == null || this.getSelectedCell().equals(coord)){
+			if (this.startCoord == null || this.startCoord.equals(coord)){
 				if (this.selectionArea != null){
 					this.selectionArea = null;
 					this.canvas.rollback();
@@ -1059,7 +1132,7 @@ PointerDecorator.prototype = {
 			}
 			// calculate box so we know from where to where we should draw the line
 			this.canvas.rollback();
-			this.selectionArea = new Box(this.getSelectedCell(), coord);
+			this.selectionArea = new Box(this.startCoord, coord);
 
 			// stack non-empty pixel within the selected square
 			for (minX = this.selectionArea.minX; minX <= this.selectionArea.maxX; minX++) {
@@ -1289,7 +1362,7 @@ BoxDrawerTool.prototype = {
 		this.canvas.mouseDown(coord);
 		this.mouseStatus = "down";
 		this.startCoord = coord;
-		this.detectEndPoints(coord);
+		this.endPointsInfo = this.canvas.detectEndPoints(coord);
 	}
 	,mouseMove : function(coord) {
 		if (this.canvas.getActiveTool() != this.toolId){
@@ -1419,40 +1492,6 @@ BoxDrawerTool.prototype = {
 	}
 	, cursor : function() {
 		return "crosshair";
-	}
-	, detectEndPoints : function(coord){
-		endPointsInfo = [];
-		for (direction in contextCoords) {
-			endPoints = this.canvas.getFinalCoords(this.startCoord, contextCoords[direction]);
-			for (endPointIndex in endPoints) {
-				endPoint = endPoints[endPointIndex];
-				isHorizontal = contextCoords[direction].x != 0;
-				startWithArrow = arrowChars1.indexOf(this.canvas.getPixel(this.startCoord).getValue()) != -1;
-				endWithArrow = arrowChars1.indexOf(this.canvas.getPixel(endPoint).getValue()) != -1;
-				contextLength = this.canvas.getPixelContext(endPoint).getLength();
-				endPointInfo = new EndPointInfo(endPoint, contextLength, isHorizontal, startWithArrow, endWithArrow);
-				endPointsInfo.push(endPointInfo);
-				if (length == 1) {
-					console.log("Found simple endpoint: "+endPointInfo);
-				} else {
-					console.log("Found complex endpoint: "+endPointInfo);
-					endPointInfo.childEndpoints = [];
-					for (var direction2 in contextCoords) {
-						// dont go backwards or in the same direction
-						if (contextCoords[direction].add(contextCoords[direction2]).length() == 0) continue;
-						if (contextCoords[direction].add(contextCoords[direction2]).length() == 2) continue;
-						var endPoints2 = this.canvas.getFinalCoords(endPoint, contextCoords[direction2]);
-						if (endPoints2.length > 0){
-							contextLength2 = this.canvas.getPixelContext(endPoints2[0]).getLength();
-							ep2 = new EndPointInfo(endPoints2[0], contextLength2, isHorizontal, startWithArrow, -1 != arrowChars1.indexOf(this.canvas.getPixel(endPoints2[0]).getValue()), endWithArrow);
-							endPointInfo.childEndpoints.push(ep2);
-							console.log("Found child endpoint: "+ep2);
-						}
-					}
-				}
-			}
-			this.endPointsInfo = endPointsInfo;
-		}
 	}
 }
 
@@ -1601,42 +1640,33 @@ function init(){
 
 	// initialize canvas
 	var canvas = delegateProxy(new ASCIICanvas(document.getElementById("ascii-canvas"),grid),"grid");
-
 	// add click, keyboard & mouse capabilities
 	canvas = delegateProxy(new ToolableCanvas(canvas), "canvas");
-
-	// add cursor decorator
-	canvas = delegateProxy(new PointerDecorator(canvas, "pointer-button"), "canvas");
-
 	// add ascii drawing capabilities
 	canvas = delegateProxy(new DrawableCanvas(canvas), "canvas");
-
 	// add ascii drawing capabilities with style
 	canvas = delegateProxy(new StylableCanvas(canvas), "canvas");
-
+	// add cursor decorator
+	canvas = delegateProxy(new PointerDecorator(canvas, "pointer-button"), "canvas");
+	// add selection capabilities
+	canvas = delegateProxy(new SelectTool(canvas, "select-button"), "canvas");
 	// add char writing capabilities
 	canvas = delegateProxy(new CharWriterDecorator(canvas), "canvas");
-
 	// add clear canvas capabilities
 	canvas = delegateProxy(new ClearCanvasTool(canvas, "clear-button"), "canvas");
-
 	// add set/edit text capabilities
 	canvas = delegateProxy(new TextEditTool(canvas, "text-button"), "canvas");
-
 	// add draw box capabilities
 	canvas = delegateProxy(new BoxDrawerTool(canvas, "box-button"), "canvas");
-
 	// add export capabilities
 	canvas = delegateProxy(new ExportASCIITool(canvas, "export-button"), "canvas");
-
 	// initialize mouse controller
 	new MouseController(canvas);
-
 	// visual only: adapt canvas container
 	$("#canvas-container").width(canvas.getWidth());
-
+	// select first cell, so user can start writing right from start
 	canvas.setSelectedCell(new Coord(0,0));
-
+	// start animation loop
 	animate(canvas);
 }
 
