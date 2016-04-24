@@ -387,11 +387,11 @@ ASCIICanvas.prototype = {
 		this.canvasHTML.width = this.grid.cols * Math.round(this.cellWidth) * this.zoom;
 		this.canvasHTML.height = this.grid.rows * Math.round(this.cellHeight) * this.zoom;
 		this.changed = true;
-		console.log("New canvas size ("+this.grid.cols+","+this.grid.rows+","+this.grid.zoom+") '"+this.canvasHTML.width+"/"+this.canvasHTML.height+"'");
+		// console.log("New canvas size ("+this.grid.cols+","+this.grid.rows+","+this.grid.zoom+") '"+this.canvasHTML.width+"/"+this.canvasHTML.height+"'");
 	}
 	, redraw : function() {
 
-		console.log("Redrawing canvas... zoom '"+this.zoom+"'");
+		// console.log("Redrawing canvas... zoom '"+this.zoom+"'");
 
 		this.canvasContext.setTransform(1, 0, 0, 1, 0, 0);
 		this.canvasContext.scale(this.zoom, this.zoom);
@@ -478,6 +478,10 @@ Box.prototype = {
 	}
 	, add : function(coord){
 		return new Box(this.min.add(coord),this.max.add(coord));
+	}
+	, squareSize : function(){
+		// +1 because boxes include bounds
+		return (this.maxX-this.minX+1)*(this.maxY-this.minY+1);
 	}
 	, toString : function(){
 		return "Box: ('"+this.min+"'->'"+this.max+"')";
@@ -690,9 +694,9 @@ DrawableCanvas.prototype = {
 				endPointInfo = new EndPointInfo(endPoint, contextLength, isHorizontal, startWithArrow, endWithArrow);
 				endPointsInfo.push(endPointInfo);
 				if (length == 1) {
-					console.log("Found simple endpoint: "+endPointInfo);
+					//console.log("Found simple endpoint: "+endPointInfo);
 				} else {
-					console.log("Found complex endpoint: "+endPointInfo);
+					// console.log("Found complex endpoint: "+endPointInfo);
 					endPointInfo.childEndpoints = [];
 					for (var direction2 in contextCoords) {
 						// dont go backwards or in the same direction
@@ -703,13 +707,22 @@ DrawableCanvas.prototype = {
 							contextLength2 = this.getPixelContext(endPoints2[0]).getLength();
 							ep2 = new EndPointInfo(endPoints2[0], contextLength2, isHorizontal, startWithArrow, -1 != arrowChars1.indexOf(this.canvas.getPixel(endPoints2[0]).getValue()), endWithArrow);
 							endPointInfo.childEndpoints.push(ep2);
-							console.log("Found child endpoint: "+ep2);
+							// console.log("Found child endpoint: "+ep2);
 						}
 					}
 				}
 			}
 		}
 		return endPointsInfo;
+	}
+	, isDrawCharArea: function(area){
+		if (this.canvas.isOutOfBounds(area.min) || this.canvas.isOutOfBounds(area.max)) throw "OutOfBoundException";
+		for (col = area.minX;col<=area.maxX;col++){
+			for (row = area.minY;row<=area.maxY;row++){
+				if (!this.isDrawChar(this.canvas.getPixel(new Coord(col,row)))) return false;
+			}
+		}
+		return area.squareSize() > 0;
 	}
 }
 
@@ -944,7 +957,7 @@ PointerDecorator.prototype = {
  	 * implementation of intermitent cursor
  	 */
 	, refresh : function(){
-		var shouldDraw = this.getSelectedCell() != null && new Date().getMilliseconds() % 1000 < 500;
+		var shouldDraw = this.getSelectedCell() != null && new Date().getTime() % 2000 < 1000;
 		var changed = shouldDraw != this.getDrawSelectedCell();
 		this.setDrawSelectedCell(shouldDraw);
 		this.changed = this.changed || changed;
@@ -997,24 +1010,10 @@ PointerDecorator.prototype = {
 
 	, keyUp : function(eventObject){
 		this.canvas.keyUp(eventObject);
-
 		// check if we have the focus
 		if (!this.canvas.isFocused()){ return }
-
-		// check if user is deleting the selection
-		if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE) {
-			if (this.finalBox != null){
-				console.log("Deleting selection '"+this.finalBox+"'...");
-				this.canvas.clear(this.finalBox.min, this.finalBox.max);
-				this.canvas.commit();
-				this.finalBox = null;
-				return;
-		 }
-	 }
-
 		// check if there is the pointer is inside the canvas
 		if (this.getSelectedCell() == null){ return; }
-
 		// move selected cell with the arrows & backspace key
 		if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
 			if (this.canvas.getPixel(this.getSelectedCell().add(leftCoord)) != undefined){
@@ -1039,12 +1038,21 @@ function SelectTool(canvas, toolId){
 	this.class = "SelectTool";
 	this.canvas = canvas;
 	this.toolId = toolId;
-	this.startCoord = null;
 	this.changed = false;
-	// move boxes
+	// mouse action
+	this.startCoord = null;
+	this.currentCoord = null;
+	this.startTime = null;
+	this.currentTime = null;
+	this.action = null;
+	// area selection
+	this.controlKeyEnabled = false;
 	this.selectionArea = null;
 	this.finalBox = null;
 	this.finalMove = null;
+	// shape selection
+	this.endPointsInfo = null;
+	this.selectedBox = null;
 }
 
 SelectTool.prototype = {
@@ -1056,31 +1064,97 @@ SelectTool.prototype = {
 		this.canvas.setChanged(changed)
 		this.changed = changed;
 	}
+	, keyDown : function(eventObject){
+		// propagate event
+		this.canvas.keyDown(eventObject);
+		// capture event if this is the active tool
+		if (this.canvas.getActiveTool() != this.toolId) return;
+		// check if canvas has the focus
+		if (!this.canvas.isFocused()) return;
+		// capture control key event
+		if (eventObject.keyCode == KeyEvent.DOM_VK_CONTROL){
+			this.controlKeyEnabled = true;
+		}
+		// check if user is deleting the selection
+		if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE) {
+			if (this.finalBox != null){
+				console.log("Deleting selection '"+this.finalBox+"'...");
+				this.canvas.clear(this.finalBox.min, this.finalBox.max);
+				this.canvas.commit();
+				this.finalBox = null;
+				return;
+		 }
+	 }
+	}
+	, keyUp: function(eventObject){
+		// propagate event
+		this.canvas.keyUp(eventObject);
+		// capture control key event
+		if (eventObject.keyCode == KeyEvent.DOM_VK_CONTROL){
+			this.controlKeyEnabled = false;
+		}
+	}
 	, mouseDown : function(coord){
 		this.canvas.mouseDown(coord);
 		this.startCoord = coord;
+		this.startTime = this.currentTime = new Date().getTime();
 		this.mouseStatus = "down";
-		this.selectArea(coord);
-		this.changed = true;
+		this.process();
 	}
 	, mouseMove : function(coord){
 		this.canvas.mouseMove(coord);
-		this.mouseStatus = this.mouseStatus == "up" || this.mouseStatus == "hover"? "hover" : "moving";
-		this.selectArea(coord);
-		this.changed = true;
+		this.currentCoord = coord;
+		this.currentTime = new Date().getTime();
+		this.mouseStatus = this.mouseStatus == "down" || this.mouseStatus == "dragging"? "dragging" : "hover";
+		this.process();
 	}
 	, mouseUp : function(coord){
 		this.canvas.mouseUp(coord);
+		this.currentCoord = coord;
+		this.currentTime = new Date().getTime();
 		this.mouseStatus = "up";
-		this.selectArea(coord);
+		this.process();
 	}
 	, canvasMouseLeave : function(){
 		this.canvas.canvasMouseLeave();
-		this.canvas.rollback();
+		this.mouseStatus = "leave";
+		this.process();
 	}
-	,selectArea(coord){
-		if (this.canvas.getActiveTool() != this.toolId) return;
-		if (this.mouseStatus == "hover") return;
+	, process : function(){
+		coord = this.currentCoord;
+		this.action = this.getNextAction();
+		switch(this.action){
+			case "select-area":
+			case "select-area-in-progress": this.selectArea(coord); break;
+			case "select-area-ready": this.selectArea(coord); break;
+			case "select-area-moving": this.selectArea(coord); break;
+			case "select-area-finalized": this.selectArea(coord); this.action = null; break;
+			case "select-shape":
+			case "select-shape-moving": this.selectShape(coord); break;
+			case "select-shape-finalized": this.selectShape(coord); this.action = null; break;
+			case "all": this.selectArea(coord); this.selectShape(coord); break;
+			case "rollback": this.canvas.rollback(); this.action = null;
+		}
+	}
+	, getNextAction : function(){
+		// machine state for chossing the action to execute
+		if (this.canvas.getActiveTool() != this.toolId) return undefined;
+		if (this.mouseStatus == "hover") return this.action;
+		if (this.mouseStatus == "down" && this.action == "select-area-ready") return "select-area-moving";
+		if (this.mouseStatus == "down") return "all";
+		if (this.mouseStatus == "dragging" && this.action == "select-area-moving") return "select-area-moving";
+		if (this.mouseStatus == "dragging" && this.action == "select-area-in-progress") return "select-area-in-progress";
+		if (this.mouseStatus == "dragging" && this.action == "select-shape-moving") return "select-shape-moving";
+		if (this.mouseStatus == "dragging" && this.controlKeyEnabled) return "select-area-in-progress";
+		if (this.mouseStatus == "dragging" && this.selectedBox != null) return "select-shape-moving";
+		if (this.mouseStatus == "dragging") return "select-area-in-progress";
+		if (this.mouseStatus == "up" && this.action == "select-shape-moving") return "select-shape-finalized";
+		if (this.mouseStatus == "up" && this.action == "select-area-in-progress") return "select-area-ready";
+		if (this.mouseStatus == "up" && this.action == "select-area-moving") return "select-area-finalized";
+		if (this.mouseStatus == "leave") return "all";
+		return undefined;
+	}
+	, selectArea : function(coord){
 		// user finalized the selection
 		if (this.mouseStatus == "up"){
 			// only do it once (user may click several times on the final selection)
@@ -1108,7 +1182,7 @@ SelectTool.prototype = {
 			return;
 		}
 
-		if (this.mouseStatus == "moving") {
+		if (this.mouseStatus == "dragging") {
 			// user is moving selection
 			if (this.finalBox != null && this.finalBox.containsCoord(coord)	|| this.finalMove != null && this.finalMove.containsCoord(coord)){
 				// move implementation
@@ -1145,6 +1219,46 @@ SelectTool.prototype = {
 		}
 		this.changed = true;
 	}
+	, selectShape : function(coord){
+		if (this.mouseStatus == "down") {
+				this.endPointsInfo = this.canvas.detectEndPoints(this.startCoord);
+				this.selectedBox = this.detectBox(coord);
+				return;
+		}
+		if (this.action != "select-shape" && this.action != "select-shape-moving" && this.action != "select-shape-finalized") return;
+		if (this.mouseStatus == "leave") {
+			this.endPointsInfo = null;
+			this.selectedBox = null;
+			this.canvas.rollback();
+			return;
+		}
+		if (this.mouseStatus == "up") {
+			this.canvas.commit();
+			return
+		};
+		// box not detected
+		if (this.selectedBox == null) return;
+		// move box
+		this.canvas.rollback();
+		this.canvas.moveArea(this.selectedBox,coord.substract(this.startCoord));
+		this.changed = true;
+	}
+	, detectBox: function(coord){
+		// console.log("yupi! "+this.endPointsInfo);
+		if (this.endPointsInfo.length == 2 && this.endPointsInfo[0].contextLength == 2 && this.endPointsInfo[1].contextLength == 2
+			&& this.endPointsInfo[0].childEndpoints.length > 0 && this.endPointsInfo[1].childEndpoints.length > 0
+			&& this.endPointsInfo[0].childEndpoints[0].position.hasSameAxis(this.endPointsInfo[1].childEndpoints[0].position)){
+			if (this.endPointsInfo[0].childEndpoints[0].position.equals(this.endPointsInfo[1].childEndpoints[0].position)){
+				// its a box
+				return new Box(this.startCoord,this.endPointsInfo[0].childEndpoints[0].position);
+			}
+			else if (this.canvas.isDrawCharArea(new Box(this.endPointsInfo[0].childEndpoints[0].position,this.endPointsInfo[1].childEndpoints[0].position))){
+				// its yet a box
+				return new Box(this.endPointsInfo[0].position, this.endPointsInfo[1].childEndpoints[0].position);
+			}
+		}
+		return null;
+	}
 }
 
 // ---------------------------------------------- CANVAS CHAR DECORATOR -------------------------------------------- //
@@ -1165,29 +1279,38 @@ CharWriterDecorator.prototype = {
 		// prevent space key to scroll down page
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SPACE) {
 			eventObject.preventDefault();
-			return;
 		}
 	}
 	, keyUp : function(eventObject){
-
+		// propagate event
+		this.canvas.keyUp(eventObject);
 		// dont process F1-F12 keys
-		if (eventObject.keyCode >= KeyEvent.DOM_VK_F1 && eventObject.keyCode <= KeyEvent.DOM_VK_F24){ return;	}
-
+		if (eventObject.keyCode >= KeyEvent.DOM_VK_F1 && eventObject.keyCode <= KeyEvent.DOM_VK_F24) return;
+		// dont write non-printable characters
+		if (eventObject.keyCode == KeyEvent.DOM_VK_CONTROL) return;
 		// dont write anything
 		if (!this.canvas.isFocused()){ return }
-
+		// delete previous character
 		if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
-			if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
+			// fix this: this is coupled to whether the pointer decorator is called first or after
+			/*if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
 				this.canvas.import(" ",this.canvas.getSelectedCell().add(leftCoord));
+			}*/
+			if (this.canvas.getPixel(this.canvas.getSelectedCell()) != undefined){
+				this.canvas.import(" ",this.canvas.getSelectedCell());
 			}
-  	}	else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
+  	}
+		// delete next character
+		else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
   		// get current text
 			currentText = this.canvas.getText(this.canvas.getSelectedCell());
 			if (currentText == null){ return;	}
 			// delete first character and replace last with space (we are moving text to left)
 			currentText = currentText.substring(1)+" ";
 			this.canvas.import(currentText,this.canvas.getSelectedCell());
-  	}	else{
+  	}
+		// write key
+		else{
   		if (this.canvas.getPixel(this.canvas.getSelectedCell().add(rightCoord)) != undefined){
   			this.canvas.import(String.fromCharCode(eventObject.which),this.canvas.getSelectedCell());
  				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
@@ -1195,9 +1318,6 @@ CharWriterDecorator.prototype = {
   	}
   	this.canvas.commit();
   	this.canvas.setChanged(true);
-
-		// propagate event
-		this.canvas.keyUp(eventObject);
 	}
 }
 
@@ -1338,7 +1458,8 @@ function EndPointInfo(position,contextLength,isHorizontal,startWithArrow, endWit
 EndPointInfo.prototype = {
 	toString : function(){
 		return "EndPointInfo: position '"+this.position+"', contextLength '"+this.contextLength+"', isHorizontal '"+this.isHorizontal
-		+"', startWithArrow '"+this.startWithArrow+"', endWithArrow '"+this.endWithArrow+"', endWithArrow2 '"+this.endWithArrow2+"'";
+		+"', startWithArrow '"+this.startWithArrow+"', endWithArrow '"+this.endWithArrow+"', endWithArrow2 '"+this.endWithArrow2
+		+"', childEndpoints '"+this.childEndpoints+"'";
 	}
 }
 

@@ -34,10 +34,11 @@ Features already implemented
 - Canvas grid
 - Canvas cursor & pointer
 - Arrow keys controls the canvas cursor
-- Drag mouse to select area,clear or move it
+- Drag to select area,clear or move it
 - Write/Edit text (2 ways: online & using input text widget)
 - Draw boxes & resize them
 - Move single lines
+- Select box / move box
 - Clear canvas
 - Storage support to resume work
 - Draw with different line styles
@@ -47,6 +48,7 @@ Features already implemented
 Still to be implemented
 =======================
 
+- fix state machine for all tools (like I did in SelectTool)
 - select shape / move shape
 - fix keyboard encoding when writing chars
 - resize shape if writing text inside
