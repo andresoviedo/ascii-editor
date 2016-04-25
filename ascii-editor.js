@@ -192,7 +192,7 @@ Grid.prototype = {
 	}
 	, stackPixel : function(coord, value) {
 		if (this.isOutOfBounds(coord)) return;
-		if (!printableCharsRegex.test(value)) throw new Error("Char non recognized ["+value.charCodeAt(0)+"]");
+		if (value != null && value != "" && !printableCharsRegex.test(value)) throw new Error("Char non recognized ["+value.charCodeAt(0)+"]");
 		var pixel = this.getPixel(coord);
 		this.pixelsStack.push(new PixelPosition(coord, pixel));
 		pixel.tempValue = value;
@@ -1322,6 +1322,7 @@ function CharWriterDecorator(canvas){
 
 CharWriterDecorator.prototype = {
 
+	// some chars are not sent to keypress like period or space
 	keyDown : function(eventObject){
 		this.canvas.keyDown(eventObject);
 		// dont write anything unless canvas has the focus
@@ -1329,6 +1330,7 @@ CharWriterDecorator.prototype = {
 		// prevent space key to scroll down page
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SPACE) {
 			eventObject.preventDefault();
+			this.keyPress({keyCode:eventObject.keyCode,charCode:" ".charCodeAt(0)});
 		} else if (eventObject.keyCode == KeyEvent.DOM_VK_PERIOD){
 			this.keyPress({keyCode:eventObject.keyCode,charCode:".".charCodeAt(0)});
 		}
