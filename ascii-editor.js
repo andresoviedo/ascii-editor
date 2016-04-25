@@ -1330,24 +1330,20 @@ CharWriterDecorator.prototype = {
 		// prevent space key to scroll down page
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SPACE) {
 			eventObject.preventDefault();
-			this.keyPress({keyCode:eventObject.keyCode,charCode:" ".charCodeAt(0)});
-		} else if (eventObject.keyCode == KeyEvent.DOM_VK_PERIOD){
-			this.keyPress({keyCode:eventObject.keyCode,charCode:".".charCodeAt(0)});
-		}
-	}
-	, keyPress : function(eventObject){
-		// propagate event
-		this.canvas.keyPress(eventObject);
-		// dont write anything
-		if (!this.canvas.isFocused()){ return }
+			this.importChar(" ");
+			this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+		} /*else if (eventObject.keyCode == KeyEvent.DOM_VK_PERIOD){
+			this.importChar(".");
+			this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+		}*/
 		// delete previous character
-		if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+		else if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
 			// fix this: this is coupled to whether the pointer decorator is called first or after
 			/*if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
 				this.canvas.import(" ",this.canvas.getSelectedCell().add(leftCoord));
 			}*/
 			if (this.canvas.getPixel(this.canvas.getSelectedCell()) != undefined){
-				this.canvas.import(" ",this.canvas.getSelectedCell());
+				this.importChar(" ");
 			}
   	}
 		// delete next character
@@ -1357,22 +1353,29 @@ CharWriterDecorator.prototype = {
 			if (currentText == null){ return;	}
 			// delete first character and replace last with space (we are moving text to left)
 			currentText = currentText.substring(1)+" ";
-			this.canvas.import(currentText,this.canvas.getSelectedCell());
+			this.importChar(currentText);
   	}
+	}
+	, keyPress : function(eventObject){
+		// propagate event
+		this.canvas.keyPress(eventObject);
+		// dont write anything
+		if (!this.canvas.isFocused()){ return }
 		// write key
-		else{
-  		if (this.canvas.getPixel(this.canvas.getSelectedCell().add(rightCoord)) != undefined){
-  			try{
-					this.canvas.import(String.fromCharCode(eventObject.charCode),this.canvas.getSelectedCell());
- 					this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
-					console.log(eventObject.charCode);
-				}catch(e){
-					console.log(e.message);
-				}
- 			}
+		if (this.canvas.getPixel(this.canvas.getSelectedCell().add(rightCoord)) != undefined){
+			try{
+				this.importChar(String.fromCharCode(eventObject.charCode));
+				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+				console.log(eventObject.charCode);
+			}catch(e){
+				console.log(e.message);
+			}
   	}
-  	this.canvas.commit();
-  	this.canvas.setChanged(true);
+	}
+	, importChar : function(char){
+		this.canvas.import(char,this.canvas.getSelectedCell());
+		this.canvas.commit();
+		this.canvas.setChanged(true);
 	}
 }
 
