@@ -16,7 +16,7 @@ Try it!
 * http://www.andresoviedo.org/ascii-editor
 
 
-News (24/04/2016)
+News (26/04/2016)
 =================
 
 - Working on it...
@@ -29,12 +29,13 @@ Features already implemented
 - JavaScript technology. JQuery framework
 - Object oriented design. Design patterns: Decorator Pattern, Layers Pattern, Proxy Pattern
 - Mouse controller
-- Resizable canvas
-- Zoomable canvas
 - Canvas grid
+- Zoomable canvas (shift + mouse wheel)
+- Movable canvas (shift + mouse drag)
+- Resizable canvas (on windows resize)
 - Canvas cursor & pointer
 - Arrow keys controls the canvas cursor
-- Drag to select area,clear or move it
+- Drag to select area, clear or move it
 - Write/Edit text (2 ways: online & using input text widget)
 - Draw boxes & resize them
 - Move single lines
@@ -48,17 +49,19 @@ Features already implemented
 Still to be implemented
 =======================
 
+- import ASCII
+- cut / copy / paste
+- undo / redo
+- trim export (remove unnecessary lines, columns)
+- redesign tools to observer pattern
+- implement connectors
+- resize shape if writing text inside
+- make size of canvas configurable
+- save / restore configuration 
 - fix state machine for all tools (like I did in SelectTool)
 - select shape / move shape
-- fix keyboard encoding when writing chars
-- resize shape if writing text inside
-- redesign tools to observer pattern
+- handle return key / handle printing F2 / handle find (F3)
 - implement chars library
-- trim export (remove unnecessary lines, columns)
-- undo / redo
-- import ascii
-- cut / copy / paste
-- implement connectors
 - implement tables
 - integrate ASCII library
 - many more...

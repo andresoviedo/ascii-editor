@@ -20,35 +20,20 @@ button {
   cursor: pointer;
 }
 
+h1 {
+  display: inline;
+}
+
+#tools {
+  display: inline;
+}
+
 .tool {
-	font-size: 20px;
+	font-size: 1em;
 }
 
 button.active {
 	font-weight: bold;
-}
-
-#text-widget {
-	display: none;
-	position: fixed;
-}
-
-#dialog-widget {
-	display: none;
-	position: fixed;
-	left: 100px;
-	top: 100px;
-	width: 640px;
-	height:480px;
-}
-
-#dialog-widget textarea {
-	white-space: pre;
-  	word-wrap: normal;
-  	overflow-x: scroll;
-	width:100%;
-	height:100%;
-	font-family: 'Courier New'; !important
 }
 
 #chars {
@@ -62,18 +47,36 @@ button.active {
 }
 
 #canvas-container {
-	width:auto;
+  width: auto;
+	max-width: 100%;
+  max-height: 85%;
 	border-style: inset;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
-/*#canvas-container {
-  width:800px;
-  max-width:100%;
-  max-height:600px;
-  overflow-x: scroll;
-  overflow-y: scroll;
-  border: 1px red solid;
-}*/
+#dialog-widget {
+	display: none;
+	width: 100%;
+	height:100%;
+  max-width: 100%;
+  max-height: 85%;
+  border-style: inset;
+}
+
+#dialog-widget textarea {
+	white-space: pre;
+  	word-wrap: normal;
+  	overflow-x: scroll;
+	width:100%;
+	height:100%;
+	font-family: 'Courier New'; !important
+}
+
+#text-widget {
+	display: none;
+	position: fixed;
+}
 
 .visible {
   display: block !important;
@@ -83,7 +86,7 @@ button.active {
 </head>
 <body onload="init()">
 
-<h1>UML ASCII Editor</h1>
+<h1>ASCII Editor</h1>
 <div id="tools">
 	<button id="box-button" class="tool" title="Draw boxes">☐</button>
 	<button id="text-button" class="tool" title="Write/Edit text">A</button>
@@ -107,14 +110,15 @@ button.active {
   <button id="text-input-OK">OK</button>
 </div>
 
-<div id="canvas-container" width="800" height="600" >
-	<canvas id="ascii-canvas" style="border:1px black; cursor: crosshair;"></canvas>
+<div id="canvas-container">
+	<canvas id="ascii-canvas"></canvas>
 </div>
 
 <div id="dialog-widget" title="Dialog">
-  <textarea id="dialog-textarea"></textarea>
-  <button id="dialog-widget-close">Close</button>
+  <textarea id="dialog-textarea" rows="100" cols="200"></textarea>
 </div>
+
+<!-- button id="dialog-widget-close">Close</button -->
 
 </body>
 </html>

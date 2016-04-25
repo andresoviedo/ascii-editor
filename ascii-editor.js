@@ -46,11 +46,8 @@ drawStyles["1"] = {"horizontal":UC.BOX_HORIZONTAL, "vertical":UC.BOX_VERTICAL, "
 "vertical-light-right":UC.BOX_VERTICAL_LIGHT_RIGHT, "vertical-light-left":UC.BOX_VERTICAL_LIGHT_LEFT
 };
 
-// Location where the user has made click, so we can show widgets at that point
-var clickCoords = null;
-
-
-//------------------------------------------------- GRID CLASSES ----------------------------------------------------//
+// ascii|latin-1-supplement|lat-extended-a|latin-extended-b|arrows|box-drawing|
+var printableCharsRegex = /[ -~]|[¡-ÿ]|[Ā-ſ]|[ƀ-ɏ]|[←-⇿]|[─-╿]/iu;
 
 //-------------------------------------------------- COORD CLASS  ---------------------------------------------------//
 
@@ -153,7 +150,7 @@ Grid.prototype = {
 		if(typeof(Storage) !== "undefined") {
 			previousData = localStorage.getItem("data");
 			if (previousData != null){
-				this.import(previousData, new Coord(0,0));
+				this.import(previousData, new Coord(0,0), true, true);
 				this.commit();
 			}
 		}
@@ -195,6 +192,7 @@ Grid.prototype = {
 	}
 	, stackPixel : function(coord, value) {
 		if (this.isOutOfBounds(coord)) return;
+		if (!printableCharsRegex.test(value)) throw new Error("Char non recognized ["+value.charCodeAt(0)+"]");
 		var pixel = this.getPixel(coord);
 		this.pixelsStack.push(new PixelPosition(coord, pixel));
 		pixel.tempValue = value;
@@ -230,12 +228,18 @@ Grid.prototype = {
 	 * Imports the specified text into the specified coordinates. The text can be multiline.
 	 * All the whitespace characters will be replaced for nulls and it means we want to delete the pixel
 	 */
-	, import : function(text, coord) {
+	, import : function(text, coord, ommitBlanks, ommitUnrecognized) {
 		lines = text.split("\n");
 		for (e = 0;e < lines.length;e++) {
 			for (var g = lines[e], l = 0;l < g.length;l++) {
 				var h = g.charAt(l);
-				this.stackPixel(new Coord(l,e).add(coord), h);
+				if (ommitBlanks && (h == "" || h == " ")) continue;
+				try{
+					this.stackPixel(new Coord(l,e).add(coord), h);
+				}catch(e){
+					if (ommitUnrecognized) continue;
+					throw e;
+				}
 			}
 		}
 	}
@@ -313,7 +317,6 @@ ASCIICanvas.prototype = {
 	init : function(){
 		$(window).resize(function() {
 			this.resize();
-			$("#canvas-container").width(this.getCanvasHTML().width);
 		}.bind(this));
 		this.resize();
 	}
@@ -328,10 +331,15 @@ ASCIICanvas.prototype = {
 	, isFocused : function(){
 		return document.body == document.activeElement;
 	}
+	, getGridCoord: function(mouseCoord){
+		// remove zoom
+		unzoomedCoord = new Coord(mouseCoord.x/this.zoom,mouseCoord.y/this.zoom);
+		// get pixel located at the specified coordinate
+		return new Coord(Math.floor(unzoomedCoord.x / this.cellWidth), Math.floor(unzoomedCoord.y / this.cellHeight));
+	}
 	, setChanged : function(changed){
 		this.changed = changed;
 	}
-
 	, drawRect : function(coord,width,height,style){
 		this.canvasContext.fillStyle = style;
 		this.canvasContext.fillRect(coord.x*this.cellWidth,coord.y*this.cellHeight,width,height);
@@ -341,12 +349,15 @@ ASCIICanvas.prototype = {
 		var canvasCoord = this.getTextLocation(coord);
 		this.getCanvasContext().fillText(text,canvasCoord.x,canvasCoord.y);
 	}
+	, mouseDown : function(eventObject) {	}
+	, mouseMove : function(eventObject) {	}
+	, mouseUp : function() {	}
 	, mouseEnter : function() { }
-	, mouseDown : function(coord) {
+	, cellDown : function(coord) {
 		this.startCoord = coord;
 	}
-	, mouseMove : function(coord) { }
-	, mouseUp : function(coord) { }
+	, cellMove : function(coord) { }
+	, cellUp : function(coord) { }
 	, canvasMouseLeave : function() { }
 	, keyUp : function(eventObject){ }
 	, keyDown : function(eventObject){
@@ -386,6 +397,7 @@ ASCIICanvas.prototype = {
 		this.recalculateCellDimensions(this.canvasContext);
 		this.canvasHTML.width = this.grid.cols * Math.round(this.cellWidth) * this.zoom;
 		this.canvasHTML.height = this.grid.rows * Math.round(this.cellHeight) * this.zoom;
+		$("#canvas-container").width(this.getCanvasHTML().width);
 		this.changed = true;
 		// console.log("New canvas size ("+this.grid.cols+","+this.grid.rows+","+this.grid.zoom+") '"+this.canvasHTML.width+"/"+this.canvasHTML.height+"'");
 	}
@@ -457,7 +469,42 @@ ASCIICanvas.prototype = {
 	}
 }
 
-//--------------------------------------------- DRAW CLASSES --------------------------------------------------------//
+// -------------------------------------------- ZOOMABLE CANVAS ---------------------------------------------------- //
+
+function ZoomableCanvas(canvas){
+	this.canvas = canvas;
+	this.shiftKeyEnabled = false;
+	this.init();
+}
+
+ZoomableCanvas.prototype = {
+	init : function(){
+		// bind mousewheel for zooming into the canvas
+		$(this.canvas.getCanvasHTML()).bind("mousewheel", this.onMouseWheel.bind(this));
+	}
+	, keyDown : function(eventObject){
+		this.canvas.keyDown(eventObject);
+		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
+			this.shiftKeyEnabled = true;
+		}
+	}
+	, keyUp: function(eventObject){
+		this.canvas.keyUp(eventObject);
+		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
+			this.shiftKeyEnabled = false;
+		}
+	}
+	, onMouseWheel: function(eventObject) {
+		if (!this.shiftKeyEnabled) return;
+		var newZoom = this.canvas.getZoom() * (eventObject.originalEvent.wheelDelta > 0 ? 1.1 : 0.9);
+		newZoom = Math.max(Math.min(newZoom, 4), 1);
+		this.canvas.setZoom(newZoom);
+		this.canvas.resize();
+		return false;
+	}
+}
+
+//--------------------------------------------- DRAW CLASSES ------------------------------------------------------- //
 
 /**
  * Calculates the mins and max given 2 coordinates
@@ -962,25 +1009,26 @@ PointerDecorator.prototype = {
 		this.setDrawSelectedCell(shouldDraw);
 		this.changed = this.changed || changed;
 	}
-	, mouseDown : function(coord){
-		this.canvas.mouseDown(coord);
+	, cellDown : function(coord){
+		this.canvas.cellDown(coord);
 		this.mouseStatus = "down";
 		this.setSelectedCell(coord);
 		this.changed = true;
 	}
-	, mouseMove : function(coord){
-		this.canvas.mouseMove(coord);
+	, cellMove : function(coord){
+		this.canvas.cellMove(coord);
 		this.mouseStatus = this.mouseStatus == "up" || this.mouseStatus == "hover"? "hover" : "moving";
 		this.setPointerCell(coord);
 		this.changed = true;
 	}
-	, mouseUp : function(coord){
-		this.canvas.mouseUp(coord);
+	, cellUp : function(coord){
+		this.canvas.cellUp(coord);
 		this.mouseStatus = "up";
 	}
 	, canvasMouseLeave : function(){
 		this.canvas.canvasMouseLeave();
 		this.setPointerCell(null);
+		if (this.canvas.getActiveTool() != this.toolId) return;
 		this.canvas.rollback();
 		this.changed = true;
 	}
@@ -1094,22 +1142,22 @@ SelectTool.prototype = {
 			this.controlKeyEnabled = false;
 		}
 	}
-	, mouseDown : function(coord){
-		this.canvas.mouseDown(coord);
+	, cellDown : function(coord){
+		this.canvas.cellDown(coord);
 		this.startCoord = coord;
 		this.startTime = this.currentTime = new Date().getTime();
 		this.mouseStatus = "down";
 		this.process();
 	}
-	, mouseMove : function(coord){
-		this.canvas.mouseMove(coord);
+	, cellMove : function(coord){
+		this.canvas.cellMove(coord);
 		this.currentCoord = coord;
 		this.currentTime = new Date().getTime();
 		this.mouseStatus = this.mouseStatus == "down" || this.mouseStatus == "dragging"? "dragging" : "hover";
 		this.process();
 	}
-	, mouseUp : function(coord){
-		this.canvas.mouseUp(coord);
+	, cellUp : function(coord){
+		this.canvas.cellUp(coord);
 		this.currentCoord = coord;
 		this.currentTime = new Date().getTime();
 		this.mouseStatus = "up";
@@ -1276,18 +1324,18 @@ CharWriterDecorator.prototype = {
 
 	keyDown : function(eventObject){
 		this.canvas.keyDown(eventObject);
+		// dont write anything unless canvas has the focus
+		if (!this.canvas.isFocused()) return;
 		// prevent space key to scroll down page
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SPACE) {
 			eventObject.preventDefault();
+		} else if (eventObject.keyCode == KeyEvent.DOM_VK_PERIOD){
+			this.keyPress({keyCode:eventObject.keyCode,charCode:".".charCodeAt(0)});
 		}
 	}
-	, keyUp : function(eventObject){
+	, keyPress : function(eventObject){
 		// propagate event
-		this.canvas.keyUp(eventObject);
-		// dont process F1-F12 keys
-		if (eventObject.keyCode >= KeyEvent.DOM_VK_F1 && eventObject.keyCode <= KeyEvent.DOM_VK_F24) return;
-		// dont write non-printable characters
-		if (eventObject.keyCode == KeyEvent.DOM_VK_CONTROL) return;
+		this.canvas.keyPress(eventObject);
 		// dont write anything
 		if (!this.canvas.isFocused()){ return }
 		// delete previous character
@@ -1312,8 +1360,13 @@ CharWriterDecorator.prototype = {
 		// write key
 		else{
   		if (this.canvas.getPixel(this.canvas.getSelectedCell().add(rightCoord)) != undefined){
-  			this.canvas.import(String.fromCharCode(eventObject.which),this.canvas.getSelectedCell());
- 				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+  			try{
+					this.canvas.import(String.fromCharCode(eventObject.charCode),this.canvas.getSelectedCell());
+ 					this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+					console.log(eventObject.charCode);
+				}catch(e){
+					console.log(e.message);
+				}
  			}
   	}
   	this.canvas.commit();
@@ -1342,6 +1395,45 @@ ToolableCanvas.prototype = {
 	}
 }
 
+function MovableCanvas(canvas, htmlContainerSelectorId){
+	this.class = "MovableCanvas";
+	this.canvas = canvas;
+	this.htmlContainerSelectorId = htmlContainerSelectorId;
+	this.lastMouseEvent = null;
+	this.shiftKeyEnabled = false;
+}
+
+MovableCanvas.prototype = {
+		keyDown : function(eventObject){
+		this.canvas.keyDown(eventObject);
+		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
+			this.shiftKeyEnabled = true;
+		}
+	}
+	, keyUp: function(eventObject){
+		this.canvas.keyUp(eventObject);
+		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
+			this.shiftKeyEnabled = false;
+		}
+	}
+	, mouseDown : function(eventObject) {
+		this.canvas.mouseDown(eventObject);
+		this.lastMouseEvent = eventObject;
+	}
+	, mouseMove : function(eventObject){
+		this.canvas.mouseMove(eventObject);
+		if (!this.canvas.isFocused() || !this.shiftKeyEnabled) return;
+		if (this.lastMouseEvent == null) return;
+		$(this.htmlContainerSelectorId).scrollTop(Math.max(0,$(this.htmlContainerSelectorId).scrollTop() - (eventObject.clientY-this.lastMouseEvent.clientY)));
+		$(this.htmlContainerSelectorId).scrollLeft(Math.max(0,$(this.htmlContainerSelectorId).scrollLeft()  - (eventObject.clientX-this.lastMouseEvent.clientX)));
+		this.lastMouseEvent = eventObject;
+	}
+	, mouseUp : function(){
+		this.canvas.mouseUp();
+		this.lastMouseEvent = null;
+	}
+}
+
 // ------------------------------------------------- TOOLS DECORATORS ---------------------------------------------- //
 
 function ClearCanvasTool(canvas, toolId){
@@ -1366,6 +1458,7 @@ function TextEditTool(canvas, toolId) {
 	this.class = 'TextEditTool';
 	this.canvas = canvas;
 	this.toolId = toolId;
+	this.mouseCoord = null;
  	this.startCoord = null;
  	this.currentText = null;
  	this.init();
@@ -1376,9 +1469,9 @@ TextEditTool.prototype = {
 		$("#text-input").keyup(function(event) {
 			if (event.keyCode == KeyEvent.DOM_VK_ESCAPE){
 				this.close();
-			} else {
-				this.refresh();
+				return;
 			}
+			this.refresh();
 		}.bind(this));
 		$("#text-input").keypress(function(eventObject) {
 			this.refresh();
@@ -1403,36 +1496,39 @@ TextEditTool.prototype = {
 		this.canvas.click(elementId);
 		this.close();
 	}
-	, mouseDown : function(startCoord) {
-
+	, mouseDown : function(eventObject) {
+		this.canvas.mouseDown(eventObject);
+		this.mouseCoord = eventObject;
+	}
+	, cellDown : function(startCoord) {
 		if (this.canvas.getActiveTool() == this.toolId) {
-
 			// guess where the text exactly starts
 			this.startCoord = this.canvas.getTextStart(startCoord);
-
 			// show widget 50 pixels up
-			$("#text-widget").css({"left":clickCoords.x,"top":Math.max(0,clickCoords.y-50)});
-
+			$("#text-widget").css({"left":this.mouseCoord.clientX,"top":Math.max(0,this.mouseCoord.clientY-50)});
 			// get current text
 			this.currentText = this.canvas.getText(this.startCoord);
-
 			// initialize widget
 			$("#text-input").val(this.currentText != null? this.currentText : "");
-
 			// show widget & set focus
 			$("#text-widget").show(400, function() {
 				$("#text-input").focus();
-		    });
-	    }
-
-		return this.canvas.mouseDown(startCoord);
+		  });
+	  }
+		return this.canvas.cellDown(startCoord);
 	}
 	, refresh : function() {
 		var newValue = $("#text-input").val();
+		this.canvas.rollback();
 		if (this.currentText != null){
 			this.canvas.getGrid().import(this.currentText.replace(/./g," "),this.startCoord);
 		}
-		this.canvas.getGrid().import(newValue,this.startCoord);
+		try{
+			this.canvas.getGrid().import(newValue,this.startCoord);
+		}catch(e){
+			console.log(e.message);
+		}
+		this.canvas.setChanged(true);
 	}
 	, close : function() {
 		$("#text-input").val("");
@@ -1479,16 +1575,17 @@ function BoxDrawerTool(canvas, toolId) {
 }
 
 BoxDrawerTool.prototype = {
-	mouseDown : function(coord) {
-		this.canvas.mouseDown(coord);
+	cellDown : function(coord) {
+		this.canvas.cellDown(coord);
 		this.mouseStatus = "down";
 		this.startCoord = coord;
 		this.endPointsInfo = this.canvas.detectEndPoints(coord);
 	}
-	,mouseMove : function(coord) {
-		if (this.canvas.getActiveTool() != this.toolId){
-			return this.canvas.mouseMove(coord);
-		}
+	,cellMove : function(coord) {
+		this.canvas.cellMove(coord);
+		if (this.canvas.getActiveTool() != this.toolId) return;
+		if (this.startCoord == null) return;
+
 		this.endCoord = coord;
 
 		// update mouse status
@@ -1579,10 +1676,11 @@ BoxDrawerTool.prototype = {
 	/*
  	 * When the user releases the mouse, we know the second coordinate so we draw the box
  	 */
-	, mouseUp : function(coord) {
-		if (this.canvas.getActiveTool() != this.toolId){
-			return this.canvas.mouseUp(coord);
-		}
+	, cellUp : function(coord) {
+		this.canvas.cellUp(coord);
+		this.startCoord = null;
+		if (this.canvas.getActiveTool() != this.toolId) return;
+
 		if (this.mode == "boxing"){
 			// user has the mouse-up (normal situation)
 		} else if (this.mode == "resizing"){
@@ -1619,34 +1717,52 @@ BoxDrawerTool.prototype = {
 /**
  * This tool allows exporting the grid text so user can copy/paste from there
  */
-function ExportASCIITool(canvas, toolId){
+function ExportASCIITool(canvas, toolId, canvasWidgetSelectorId, widgetSelectorId){
 	this.canvas = canvas;
 	this.toolId = toolId;
+	this.canvasWidget = $(canvasWidgetSelectorId);
+	this.exportWidget = $(widgetSelectorId);
+	this.mode = 0;
 	this.init();
 }
 
 ExportASCIITool.prototype = {
 	init : function(){
-		$("#dialog-widget").hide();
-		$("#dialog-widget-close").click(function() {
-			this.close();
+		$(this.widget).hide();
+		$("#dialog-textarea").keyup(function(event) {
+			if (event.keyCode == KeyEvent.DOM_VK_ESCAPE){
+				if (this.mode == 1){
+					this.close();
+					return;
+				}
+				return;
+			}
 		}.bind(this));
+		/*$("#dialog-widget-close").click(function() {
+			this.close();
+		}.bind(this));*/
 	}
 	, click : function(elementId){
 		this.canvas.click(elementId);
-		if (this.canvas.getActiveTool() != this.toolId){
-			return ;
+		if (this.canvas.getActiveTool() != this.toolId) return;
+		if (this.mode == 1){
+			this.close();
+			return;
 		}
-	    $("#dialog-textarea").val(this.canvas.getGrid().export());
-	    $("#dialog-widget").show();
-	    $("#dialog-textarea").focus(function(){
+		$("#dialog-textarea").val(this.canvas.getGrid().export());
+		$(this.canvasWidget).hide();
+		this.mode = 1;
+    $(this.exportWidget).show();
+    /*$("#dialog-textarea").focus(function(){
 			var $this = $(this);
-	    	$this.select();
-		});
-    }
-    , close : function() {
+	    $this.select();
+		});*/
+  }
+  , close : function() {
+		$(this.exportWidget).hide();
+		$(this.canvasWidget).show();
 		$("#dialog-textarea").val("");
-		$("#dialog-widget").hide();
+		this.mode = 0;
 	}
 }
 
@@ -1655,6 +1771,7 @@ ExportASCIITool.prototype = {
 function MouseController(canvas) {
 	this.class = 'MouseController';
 	this.canvas = canvas;
+	this.canvasHTML = canvas.getCanvasHTML();
 	this.init();
 	this.setActiveElement("select-button");
 	this.lastPointerCoord = null;
@@ -1670,32 +1787,27 @@ MouseController.prototype = {
 			// invoke tool
 			this.canvas.click(elementId);
 		}.bind(this));
-		// bind mousewheel for zooming into the canvas
-		$(this.canvas.getCanvasHTML()).bind("mousewheel", function(eventObject) {
-			var newZoom = this.canvas.zoom * (eventObject.originalEvent.wheelDelta > 0 ? 1.1 : 0.9);
-			newZoom = Math.max(Math.min(newZoom, 4), 1);
-			this.canvas.setZoom(newZoom);
-			this.canvas.resize();
-			$("#canvas-container").width(this.canvas.getCanvasHTML().width);
-			return false;
-		}.bind(this));
 		// bind mouse action for handling the drawing
 		$(this.canvas.getCanvasHTML()).mousedown(function(eventObject) {
-			// TODO: move coords translation to canvas class
-			clickCoords = new Coord(eventObject.clientX, eventObject.clientY);
-			this.lastPointerCoord = this.getCanvasCoord(eventObject);
-			this.canvas.mouseDown(this.lastPointerCoord);
+			// propagate event
+			this.canvas.mouseDown(eventObject);
+			this.lastPointerCoord = this.getGridCoord(eventObject);
+			this.canvas.cellDown(this.lastPointerCoord);
 		}.bind(this));
 		$(this.canvas.getCanvasHTML()).mouseup(function() {
-			this.canvas.mouseUp(this.lastPointerCoord);
+			// propagate event
+			this.canvas.mouseUp();
+			this.canvas.cellUp(this.lastPointerCoord);
 		}.bind(this));
 		$(this.canvas.getCanvasHTML()).mouseenter(function() {
 			this.canvas.getCanvasHTML().style.cursor = this.canvas.cursor();
 			this.canvas.mouseEnter();
 		}.bind(this));
 		$(this.canvas.getCanvasHTML()).mousemove(function(eventObject) {
-			this.lastPointerCoord = this.getCanvasCoord(eventObject);
-			this.canvas.mouseMove(this.lastPointerCoord);
+			// propagate event
+			this.canvas.mouseMove(eventObject);
+			this.lastPointerCoord = this.getGridCoord(eventObject);
+			this.canvas.cellMove(this.lastPointerCoord);
 		}.bind(this));
 		$(this.canvas.getCanvasHTML()).mouseleave(function() {
 			this.canvas.canvasMouseLeave();
@@ -1715,37 +1827,33 @@ MouseController.prototype = {
 		$("#tools > button.tool").removeClass("active");
 		$("#" + elementId).toggleClass("active");
 	}
-	, getCanvasCoord(mouseEvent){
-		// get canvas relative coordinates
+	, getGridCoord: function(mouseEvent){
+		// get HTML canvas relative coordinates
 		canvasHTMLCoord = this.getCanvasHTMLCoord(mouseEvent);
-		// remove zoom
-		canvasHTMLUnZoomedCoord = this.getUnZoomedCoord(canvasHTMLCoord,this.canvas.getZoom());
-		// get pixel located at the specified coordinate
-		gridCoord = new Coord(Math.floor(canvasHTMLUnZoomedCoord.x / this.canvas.getCellWidth()), Math.floor(canvasHTMLUnZoomedCoord.y / this.canvas.getCellHeight()));
-		return gridCoord;
+		// get canvas coord
+		return this.canvas.getGridCoord(canvasHTMLCoord);
 	}
 	, getCanvasHTMLCoord : function(mouseEvent){
 		var x;
 		var y;
-		var parent = $(this.canvas.getCanvasHTML()).parent();
-		var xp = parent? parent.scrollLeft() : 0;
-		var yp = parent? parent.scrollTop() : 0;
 		if (mouseEvent.pageX || mouseEvent.pageY) {
-			x = mouseEvent.pageX + xp;
-			y = mouseEvent.pageY + yp;
+			x = mouseEvent.pageX;
+			y = mouseEvent.pageY;
+		}	else {
+			x = mouseEvent.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
+			y = mouseEvent.clientY + document.body.scrollTop + document.documentElement.scrollTop;
 		}
-		else {
-			x = mouseEvent.clientX + document.body.scrollLeft + document.documentElement.scrollLeft + xp;
-			y = mouseEvent.clientY + document.body.scrollTop + document.documentElement.scrollTop + yp;
+		x -= this.canvasHTML.offsetLeft;
+		y -= this.canvasHTML.offsetTop;
+		// are we inside a scrollable div?
+		// TODO: should this be handled by MovableTool? (it know there is a container)
+		var parent = $(this.canvasHTML).parent();
+		if (parent){
+			x += parent.scrollLeft();
+			y += parent.scrollTop();
 		}
-		x -= this.canvas.getCanvasHTML().offsetLeft;
-		y -= this.canvas.getCanvasHTML().offsetTop;
 		return new Coord(x,y);
 	}
-	, getUnZoomedCoord : function(coord,zoom){
-		return new Coord(coord.x/zoom,coord.y/zoom);
-	}
-
 }
 
 // ---------------------------------------------------- INIT ------------------------------------------------------- //
@@ -1761,6 +1869,10 @@ function init(){
 
 	// initialize canvas
 	var canvas = delegateProxy(new ASCIICanvas(document.getElementById("ascii-canvas"),grid),"grid");
+	// add canvas movability
+	canvas = delegateProxy(new MovableCanvas(canvas, "#canvas-container"), "canvas");
+	// add canvas zoom feature
+	canvas = delegateProxy(new ZoomableCanvas(canvas), "canvas");
 	// add click, keyboard & mouse capabilities
 	canvas = delegateProxy(new ToolableCanvas(canvas), "canvas");
 	// add ascii drawing capabilities
@@ -1780,7 +1892,7 @@ function init(){
 	// add draw box capabilities
 	canvas = delegateProxy(new BoxDrawerTool(canvas, "box-button"), "canvas");
 	// add export capabilities
-	canvas = delegateProxy(new ExportASCIITool(canvas, "export-button"), "canvas");
+	canvas = delegateProxy(new ExportASCIITool(canvas, "export-button", "#canvas-container", "#dialog-widget"), "canvas");
 	// initialize mouse controller
 	new MouseController(canvas);
 	// visual only: adapt canvas container
