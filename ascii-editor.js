@@ -358,7 +358,7 @@ ASCIICanvas.prototype = {
 	}
 	, cellMove : function(coord) { }
 	, cellUp : function(coord) { }
-	, canvasMouseLeave : function() { }
+	, mouseLeave : function() { }
 	, keyUp : function(eventObject){ }
 	, keyDown : function(eventObject){
 		if (this.isFocused() && eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
@@ -393,7 +393,7 @@ ASCIICanvas.prototype = {
 			console.log("Cell height '"+this.cellHeight+"', cell descend '"+this.cellDescend+"'");
 		}
 	}
-	, resize : function (){
+	, resize : function(){
 		this.recalculateCellDimensions(this.canvasContext);
 		this.canvasHTML.width = this.grid.cols * Math.round(this.cellWidth) * this.zoom;
 		this.canvasHTML.height = this.grid.rows * Math.round(this.cellHeight) * this.zoom;
@@ -1025,11 +1025,9 @@ PointerDecorator.prototype = {
 		this.canvas.cellUp(coord);
 		this.mouseStatus = "up";
 	}
-	, canvasMouseLeave : function(){
-		this.canvas.canvasMouseLeave();
+	, mouseLeave : function(){
+		this.canvas.mouseLeave();
 		this.setPointerCell(null);
-		if (this.canvas.getActiveTool() != this.toolId) return;
-		this.canvas.rollback();
 		this.changed = true;
 	}
 	/**
@@ -1080,43 +1078,173 @@ PointerDecorator.prototype = {
 	}
 }
 
-// ---------------------------------------------- MOVE FEATURE ----------------------------------------------------- //
+// ---------------------------------------------- CANVAS CHAR DECORATOR -------------------------------------------- //
 
-function SelectTool(canvas, toolId){
-	this.class = "SelectTool";
+/**
+ * This tool handles the cursor position & movement (arrow keys) and pointer hovering.
+ * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
+ */
+function WritableCanvas(canvas){
+	this.class = "WritableCanvas";
 	this.canvas = canvas;
-	this.toolId = toolId;
-	this.changed = false;
-	// mouse action
-	this.startCoord = null;
-	this.currentCoord = null;
-	this.startTime = null;
-	this.currentTime = null;
-	this.action = null;
-	// area selection
-	this.controlKeyEnabled = false;
-	this.selectionArea = null;
-	this.finalBox = null;
-	this.finalMove = null;
-	// shape selection
-	this.endPointsInfo = null;
-	this.selectedBox = null;
 }
 
-SelectTool.prototype = {
+WritableCanvas.prototype = {
 
-	hasChanged : function(){
+	// some chars are not sent to keypress like period or space
+	keyDown : function(eventObject){
+		this.canvas.keyDown(eventObject);
+		// dont write anything unless canvas has the focus
+		if (!this.canvas.isFocused()) return;
+		// prevent space key to scroll down page
+		if (eventObject.keyCode == KeyEvent.DOM_VK_SPACE) {
+			eventObject.preventDefault();
+			this.importChar(" ");
+			this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+		} /*else if (eventObject.keyCode == KeyEvent.DOM_VK_PERIOD){
+			this.importChar(".");
+			this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+		}*/
+		// delete previous character
+		else if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+			// fix this: this is coupled to whether the pointer decorator is called first or after
+			/*if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
+				this.canvas.import(" ",this.canvas.getSelectedCell().add(leftCoord));
+			}*/
+			if (this.canvas.getPixel(this.canvas.getSelectedCell()) != undefined){
+				this.importChar(" ");
+			}
+  	}
+		// delete next character
+		else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
+  		// get current text
+			currentText = this.canvas.getText(this.canvas.getSelectedCell());
+			if (currentText == null){ return;	}
+			// delete first character and replace last with space (we are moving text to left)
+			currentText = currentText.substring(1)+" ";
+			this.importChar(currentText);
+  	}
+	}
+	, keyPress : function(eventObject){
+		// propagate event
+		this.canvas.keyPress(eventObject);
+		// dont write anything
+		if (!this.canvas.isFocused()){ return }
+		// write key
+		if (this.canvas.getPixel(this.canvas.getSelectedCell().add(rightCoord)) != undefined){
+			try{
+				this.importChar(String.fromCharCode(eventObject.charCode));
+				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+			}catch(e){
+				console.log(e.message);
+			}
+  	}
+	}
+	, importChar : function(char){
+		this.canvas.import(char,this.canvas.getSelectedCell());
+		this.canvas.commit();
+		this.canvas.setChanged(true);
+	}
+}
+
+// -------------------------------------------- MOVABLE CANVAS DECORATOR ------------------------------------------- //
+
+function MovableCanvas(canvas, htmlContainerSelectorId){
+	this.class = "MovableCanvas";
+	this.canvas = canvas;
+	this.htmlContainerSelectorId = htmlContainerSelectorId;
+	this.lastMouseEvent = null;
+	this.shiftKeyEnabled = false;
+}
+
+MovableCanvas.prototype = {
+		keyDown : function(eventObject){
+		this.canvas.keyDown(eventObject);
+		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
+			this.shiftKeyEnabled = true;
+		}
+	}
+	, keyUp: function(eventObject){
+		this.canvas.keyUp(eventObject);
+		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
+			this.shiftKeyEnabled = false;
+		}
+	}
+	, mouseDown : function(eventObject) {
+		this.canvas.mouseDown(eventObject);
+		this.lastMouseEvent = eventObject;
+	}
+	, mouseMove : function(eventObject){
+		this.canvas.mouseMove(eventObject);
+		if (!this.canvas.isFocused() || !this.shiftKeyEnabled) return;
+		if (this.lastMouseEvent == null) return;
+		$(this.htmlContainerSelectorId).scrollTop(Math.max(0,$(this.htmlContainerSelectorId).scrollTop() - (eventObject.clientY-this.lastMouseEvent.clientY)));
+		$(this.htmlContainerSelectorId).scrollLeft(Math.max(0,$(this.htmlContainerSelectorId).scrollLeft()  - (eventObject.clientX-this.lastMouseEvent.clientX)));
+		this.lastMouseEvent = eventObject;
+	}
+	, mouseUp : function(){
+		this.canvas.mouseUp();
+		this.lastMouseEvent = null;
+	}
+}
+
+// ---------------------------------------------- CANVAS TOOL ------------------------------------------------------ //
+
+/**
+ * Abstract tool
+ */
+class CanvasTool {
+	constructor(toolId){
+		this.toolId = toolId;
+		this.enabled = false;
+	}
+	getId(){ return this.toolId; }
+	isEnabled(){ return this.enabled; }
+	setEnabled(enabled){ this.enabled = enabled; }
+	click() {}
+	mouseDown(eventObject) {	}
+	mouseMove(eventObject) {	}
+	mouseUp() {	}
+	mouseEnter() { }
+	mouseLeave() { }
+	cellDown(coord) { }
+	cellMove(coord) { }
+	cellUp(coord) { }
+	keyDown(eventObject){	}
+	keyPress(eventObject){ }
+	keyUp(eventObject){ }
+}
+
+// ---------------------------------------------- MOVE FEATURE ----------------------------------------------------- //
+
+class SelectTool extends CanvasTool {
+	constructor(toolId, canvas){
+		super(toolId);
+		this.canvas = canvas;
+		this.changed = false;
+		// mouse action
+		this.startCoord = null;
+		this.currentCoord = null;
+		this.startTime = null;
+		this.currentTime = null;
+		this.action = null;
+		// area selection
+		this.controlKeyEnabled = false;
+		this.selectionArea = null;
+		this.finalBox = null;
+		this.finalMove = null;
+		// shape selection
+		this.endPointsInfo = null;
+		this.selectedBox = null;
+	}
+	hasChanged(){
 		return this.canvas.hasChanged() || this.changed;
 	}
-	, setChanged : function(changed){
+	setChanged(changed){
 		this.canvas.setChanged(changed)
 		this.changed = changed;
 	}
-	, keyDown : function(eventObject){
-		// propagate event
-		this.canvas.keyDown(eventObject);
-		// capture event if this is the active tool
-		if (this.canvas.getActiveTool() != this.toolId) return;
+	keyDown(eventObject){
 		// check if canvas has the focus
 		if (!this.canvas.isFocused()) return;
 		// capture control key event
@@ -1134,42 +1262,36 @@ SelectTool.prototype = {
 		 }
 	 }
 	}
-	, keyUp: function(eventObject){
-		// propagate event
-		this.canvas.keyUp(eventObject);
+	keyUp(eventObject){
 		// capture control key event
 		if (eventObject.keyCode == KeyEvent.DOM_VK_CONTROL){
 			this.controlKeyEnabled = false;
 		}
 	}
-	, cellDown : function(coord){
-		this.canvas.cellDown(coord);
+	cellDown(coord){
 		this.startCoord = coord;
 		this.startTime = this.currentTime = new Date().getTime();
 		this.mouseStatus = "down";
 		this.process();
 	}
-	, cellMove : function(coord){
-		this.canvas.cellMove(coord);
+	cellMove(coord){
 		this.currentCoord = coord;
 		this.currentTime = new Date().getTime();
 		this.mouseStatus = this.mouseStatus == "down" || this.mouseStatus == "dragging"? "dragging" : "hover";
 		this.process();
 	}
-	, cellUp : function(coord){
-		this.canvas.cellUp(coord);
+	cellUp(coord){
 		this.currentCoord = coord;
 		this.currentTime = new Date().getTime();
 		this.mouseStatus = "up";
 		this.process();
 	}
-	, canvasMouseLeave : function(){
-		this.canvas.canvasMouseLeave();
+	mouseLeave(){
 		this.mouseStatus = "leave";
 		this.process();
 	}
-	, process : function(){
-		coord = this.currentCoord;
+	process(){
+		var coord = this.currentCoord;
 		this.action = this.getNextAction();
 		switch(this.action){
 			case "select-area":
@@ -1184,9 +1306,7 @@ SelectTool.prototype = {
 			case "rollback": this.canvas.rollback(); this.action = null;
 		}
 	}
-	, getNextAction : function(){
-		// machine state for chossing the action to execute
-		if (this.canvas.getActiveTool() != this.toolId) return undefined;
+	getNextAction(){
 		if (this.mouseStatus == "hover") return this.action;
 		if (this.mouseStatus == "down" && this.action == "select-area-ready") return "select-area-moving";
 		if (this.mouseStatus == "down") return "all";
@@ -1202,7 +1322,7 @@ SelectTool.prototype = {
 		if (this.mouseStatus == "leave") return "all";
 		return undefined;
 	}
-	, selectArea : function(coord){
+	selectArea (coord){
 		// user finalized the selection
 		if (this.mouseStatus == "up"){
 			// only do it once (user may click several times on the final selection)
@@ -1257,17 +1377,17 @@ SelectTool.prototype = {
 			this.selectionArea = new Box(this.startCoord, coord);
 
 			// stack non-empty pixel within the selected square
-			for (minX = this.selectionArea.minX; minX <= this.selectionArea.maxX; minX++) {
-				for (minY = this.selectionArea.minY; minY <= this.selectionArea.maxY; minY++) {
-					pixelCoord = new Coord(minX, minY);
-					pixelValue = this.canvas.getPixel(pixelCoord).getValue();
+			for (var minX = this.selectionArea.minX; minX <= this.selectionArea.maxX; minX++) {
+				for (var minY = this.selectionArea.minY; minY <= this.selectionArea.maxY; minY++) {
+					var pixelCoord = new Coord(minX, minY);
+					var pixelValue = this.canvas.getPixel(pixelCoord).getValue();
 					this.canvas.stackPixel(pixelCoord, pixelValue != null? pixelValue : " ");
 				}
 			}
 		}
 		this.changed = true;
 	}
-	, selectShape : function(coord){
+	selectShape (coord){
 		if (this.mouseStatus == "down") {
 				this.endPointsInfo = this.canvas.detectEndPoints(this.startCoord);
 				this.selectedBox = this.detectBox(coord);
@@ -1291,7 +1411,7 @@ SelectTool.prototype = {
 		this.canvas.moveArea(this.selectedBox,coord.substract(this.startCoord));
 		this.changed = true;
 	}
-	, detectBox: function(coord){
+	detectBox(coord){
 		// console.log("yupi! "+this.endPointsInfo);
 		if (this.endPointsInfo.length == 2 && this.endPointsInfo[0].contextLength == 2 && this.endPointsInfo[1].contextLength == 2
 			&& this.endPointsInfo[0].childEndpoints.length > 0 && this.endPointsInfo[1].childEndpoints.length > 0
@@ -1309,168 +1429,29 @@ SelectTool.prototype = {
 	}
 }
 
-// ---------------------------------------------- CANVAS CHAR DECORATOR -------------------------------------------- //
-
-/**
- * This tool handles the cursor position & movement (arrow keys) and pointer hovering.
- * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
- */
-function CharWriterDecorator(canvas){
-	this.class = "CharWriterDecorator";
-	this.canvas = canvas;
-}
-
-CharWriterDecorator.prototype = {
-
-	// some chars are not sent to keypress like period or space
-	keyDown : function(eventObject){
-		this.canvas.keyDown(eventObject);
-		// dont write anything unless canvas has the focus
-		if (!this.canvas.isFocused()) return;
-		// prevent space key to scroll down page
-		if (eventObject.keyCode == KeyEvent.DOM_VK_SPACE) {
-			eventObject.preventDefault();
-			this.importChar(" ");
-			this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
-		} /*else if (eventObject.keyCode == KeyEvent.DOM_VK_PERIOD){
-			this.importChar(".");
-			this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
-		}*/
-		// delete previous character
-		else if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
-			// fix this: this is coupled to whether the pointer decorator is called first or after
-			/*if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
-				this.canvas.import(" ",this.canvas.getSelectedCell().add(leftCoord));
-			}*/
-			if (this.canvas.getPixel(this.canvas.getSelectedCell()) != undefined){
-				this.importChar(" ");
-			}
-  	}
-		// delete next character
-		else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
-  		// get current text
-			currentText = this.canvas.getText(this.canvas.getSelectedCell());
-			if (currentText == null){ return;	}
-			// delete first character and replace last with space (we are moving text to left)
-			currentText = currentText.substring(1)+" ";
-			this.importChar(currentText);
-  	}
-	}
-	, keyPress : function(eventObject){
-		// propagate event
-		this.canvas.keyPress(eventObject);
-		// dont write anything
-		if (!this.canvas.isFocused()){ return }
-		// write key
-		if (this.canvas.getPixel(this.canvas.getSelectedCell().add(rightCoord)) != undefined){
-			try{
-				this.importChar(String.fromCharCode(eventObject.charCode));
-				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
-				console.log(eventObject.charCode);
-			}catch(e){
-				console.log(e.message);
-			}
-  	}
-	}
-	, importChar : function(char){
-		this.canvas.import(char,this.canvas.getSelectedCell());
-		this.canvas.commit();
-		this.canvas.setChanged(true);
-	}
-}
-
-// -------------------------------------------------- TOOL DECORATOR ----------------------------------------------- //
-
-/**
- * Abstract tool
- */
-
-function ToolableCanvas(canvas){
-	this.class = "ToolableCanvas";
-	this.canvas = canvas;
-	this.activeTool = null;
-}
-
-ToolableCanvas.prototype = {
-	getId : function() { return this.toolId }
-	, getActiveTool : function(){ return this.activeTool; }
-	, click : function(elementId){
-		console.log("Selected tool: "+elementId);
-		this.activeTool = elementId;
-	}
-}
-
-function MovableCanvas(canvas, htmlContainerSelectorId){
-	this.class = "MovableCanvas";
-	this.canvas = canvas;
-	this.htmlContainerSelectorId = htmlContainerSelectorId;
-	this.lastMouseEvent = null;
-	this.shiftKeyEnabled = false;
-}
-
-MovableCanvas.prototype = {
-		keyDown : function(eventObject){
-		this.canvas.keyDown(eventObject);
-		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
-			this.shiftKeyEnabled = true;
-		}
-	}
-	, keyUp: function(eventObject){
-		this.canvas.keyUp(eventObject);
-		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
-			this.shiftKeyEnabled = false;
-		}
-	}
-	, mouseDown : function(eventObject) {
-		this.canvas.mouseDown(eventObject);
-		this.lastMouseEvent = eventObject;
-	}
-	, mouseMove : function(eventObject){
-		this.canvas.mouseMove(eventObject);
-		if (!this.canvas.isFocused() || !this.shiftKeyEnabled) return;
-		if (this.lastMouseEvent == null) return;
-		$(this.htmlContainerSelectorId).scrollTop(Math.max(0,$(this.htmlContainerSelectorId).scrollTop() - (eventObject.clientY-this.lastMouseEvent.clientY)));
-		$(this.htmlContainerSelectorId).scrollLeft(Math.max(0,$(this.htmlContainerSelectorId).scrollLeft()  - (eventObject.clientX-this.lastMouseEvent.clientX)));
-		this.lastMouseEvent = eventObject;
-	}
-	, mouseUp : function(){
-		this.canvas.mouseUp();
-		this.lastMouseEvent = null;
-	}
-}
-
 // ------------------------------------------------- TOOLS DECORATORS ---------------------------------------------- //
 
-function ClearCanvasTool(canvas, toolId){
-	this.class = "ClearCanvasTool";
-	this.canvas = canvas;
-	this.toolId = toolId;
-}
-
-ClearCanvasTool.prototype.click = function(elementId){
-	this.canvas.click(elementId);
-	if (this.canvas.getActiveTool() == this.toolId) {
+class ClearCanvasTool extends CanvasTool {
+	constructor(toolId, canvas){
+		super(toolId);
+		this.canvas = canvas;
+	}
+	click(){
 		this.canvas.clear();
 		this.canvas.commit();
 	}
 }
 
-
-/**
- * This is the function for drawing text
- */
-function TextEditTool(canvas, toolId) {
-	this.class = 'TextEditTool';
-	this.canvas = canvas;
-	this.toolId = toolId;
-	this.mouseCoord = null;
- 	this.startCoord = null;
- 	this.currentText = null;
- 	this.init();
-}
-
-TextEditTool.prototype = {
-	init : function(){
+class EditTextTool extends CanvasTool {
+	constructor(toolId,canvas){
+		super(toolId);
+		this.canvas = canvas;
+		this.mouseCoord = null;
+	 	this.startCoord = null;
+	 	this.currentText = null;
+	 	this.init();
+	}
+	init(){
 		$("#text-input").keyup(function(event) {
 			if (event.keyCode == KeyEvent.DOM_VK_ESCAPE){
 				this.close();
@@ -1497,32 +1478,24 @@ TextEditTool.prototype = {
 			this.close();
 		}.bind(this));
 	}
-	, click : function(elementId){
-		this.canvas.click(elementId);
-		this.close();
-	}
-	, mouseDown : function(eventObject) {
-		this.canvas.mouseDown(eventObject);
+	mouseDown(eventObject) {
 		this.mouseCoord = eventObject;
 	}
-	, cellDown : function(startCoord) {
-		if (this.canvas.getActiveTool() == this.toolId) {
-			// guess where the text exactly starts
-			this.startCoord = this.canvas.getTextStart(startCoord);
-			// show widget 50 pixels up
-			$("#text-widget").css({"left":this.mouseCoord.clientX,"top":Math.max(0,this.mouseCoord.clientY-50)});
-			// get current text
-			this.currentText = this.canvas.getText(this.startCoord);
-			// initialize widget
-			$("#text-input").val(this.currentText != null? this.currentText : "");
-			// show widget & set focus
-			$("#text-widget").show(400, function() {
-				$("#text-input").focus();
-		  });
-	  }
-		return this.canvas.cellDown(startCoord);
+	cellDown(startCoord) {
+		// guess where the text exactly starts
+		this.startCoord = this.canvas.getTextStart(startCoord);
+		// show widget 50 pixels up
+		$("#text-widget").css({"left":this.mouseCoord.clientX,"top":Math.max(0,this.mouseCoord.clientY-50)});
+		// get current text
+		this.currentText = this.canvas.getText(this.startCoord);
+		// initialize widget
+		$("#text-input").val(this.currentText != null? this.currentText : "");
+		// show widget & set focus
+		$("#text-widget").show(400, function() {
+			$("#text-input").focus();
+	  });
 	}
-	, refresh : function() {
+	refresh() {
 		var newValue = $("#text-input").val();
 		this.canvas.rollback();
 		if (this.currentText != null){
@@ -1531,17 +1504,17 @@ TextEditTool.prototype = {
 		try{
 			this.canvas.getGrid().import(newValue,this.startCoord);
 		}catch(e){
-			console.log(e.message);
+			console.log(e.stack);
 		}
 		this.canvas.setChanged(true);
 	}
-	, close : function() {
+	close() {
 		$("#text-input").val("");
 		$("#text-widget").hide();
 		this.canvas.getGrid().rollback();
 	}
-	, cursor : function() {
-  		return "text";
+	cursor() {
+  	return "text";
 	}
 }
 
@@ -1568,27 +1541,22 @@ EndPointInfo.prototype = {
 /**
  * This is the function to draw boxes. Basically it needs 2 coordinates: startCoord and endCoord.
  */
-function BoxDrawerTool(canvas, toolId) {
-	this.class = 'BoxDrawerTool';
-	this.canvas = canvas;
-	this.toolId = toolId;
-	this.startCoord = null;
-	this.endCoord = null;
-	this.mouseStatus = null;
-	this.mode = null;
-	this.endPointsInfo = null;
-}
-
-BoxDrawerTool.prototype = {
-	cellDown : function(coord) {
-		this.canvas.cellDown(coord);
+class BoxDrawerTool extends CanvasTool {
+	constructor(toolId,canvas) {
+		super(toolId);
+		this.canvas = canvas;
+		this.startCoord = null;
+		this.endCoord = null;
+		this.mouseStatus = null;
+		this.mode = null;
+		this.endPointsInfo = null;
+	}
+	cellDown(coord) {
 		this.mouseStatus = "down";
 		this.startCoord = coord;
 		this.endPointsInfo = this.canvas.detectEndPoints(coord);
 	}
-	,cellMove : function(coord) {
-		this.canvas.cellMove(coord);
-		if (this.canvas.getActiveTool() != this.toolId) return;
+	cellMove(coord) {
 		if (this.startCoord == null) return;
 
 		this.endCoord = coord;
@@ -1638,7 +1606,7 @@ BoxDrawerTool.prototype = {
 
 			if (action == "moving-line"){
 				console.log("Moving line from '"+this.startCoord+"' to '"+coord.substract(this.startCoord)+"'...");
-				ep1 = this.endPointsInfo[0], ep2 = this.endPointsInfo[1];
+				var ep1 = this.endPointsInfo[0], ep2 = this.endPointsInfo[1];
 				this.canvas.drawLine(ep1.position, ep2.position, ep1.isHorizontal, "", true);
 				this.canvas.drawLine(ep1.position.add(coord.substract(this.startCoord)), ep2.position.add(coord.substract(this.startCoord)), ep1.isHorizontal, "-", false);
 				// this.canvas.moveArea(new Box(ep1.position,ep2.position), coord.substract(this.startCoord));
@@ -1647,7 +1615,7 @@ BoxDrawerTool.prototype = {
 				this.canvas.drawLine(this.startCoord, this.endPointsInfo[0].childEndpoints[0].position, this.endPointsInfo[0].isHorizontal, "", true);
 				this.canvas.drawLine(this.startCoord, this.endPointsInfo[1].childEndpoints[0].position, this.endPointsInfo[1].isHorizontal, "", true);
 				// draw lines at new position, displacing only over 1 coordinate if moving a side
-				sideCoord = this.endPointsInfo[0].isHorizontal? new Coord(this.startCoord.x, coord.y) : new Coord(coord.x, this.startCoord.y);
+				var sideCoord = this.endPointsInfo[0].isHorizontal? new Coord(this.startCoord.x, coord.y) : new Coord(coord.x, this.startCoord.y);
 				this.canvas.drawLine(sideCoord, this.endPointsInfo[0].childEndpoints[0].position, this.endPointsInfo[0].isHorizontal, "+", false);
 				this.canvas.drawLine(sideCoord, this.endPointsInfo[1].childEndpoints[0].position, this.endPointsInfo[1].isHorizontal, "+", false);
 			}	else if (action == "resizing-box"){
@@ -1678,13 +1646,9 @@ BoxDrawerTool.prototype = {
 			this.canvas.setChanged(true)
 		}
 	}
-	/*
- 	 * When the user releases the mouse, we know the second coordinate so we draw the box
- 	 */
-	, cellUp : function(coord) {
-		this.canvas.cellUp(coord);
+	cellUp(coord) {
+		// When the user releases the mouse, we know the second coordinate so we draw the box
 		this.startCoord = null;
-		if (this.canvas.getActiveTool() != this.toolId) return;
 
 		if (this.mode == "boxing"){
 			// user has the mouse-up (normal situation)
@@ -1704,17 +1668,12 @@ BoxDrawerTool.prototype = {
 		// update canvas
 		this.canvas.setChanged(true);
 	}
-	/**
- 	 * If the mouse leaves the canvas, we dont want to draw nothing
- 	 */
-	, canvasMouseLeave : function() {
-		return this.canvas.canvasMouseLeave();
-		if (this.canvas.getActiveTool() == this.toolId){
-			this.canvas.getGrid().rollback();
-		}
+	mouseLeave() {
+		// If the mouse leaves the canvas, we dont want to draw nothing
+		this.canvas.getGrid().rollback();
 		this.mouseStatus = "out";
 	}
-	, cursor : function() {
+	cursor() {
 		return "crosshair";
 	}
 }
@@ -1722,17 +1681,17 @@ BoxDrawerTool.prototype = {
 /**
  * This tool allows exporting the grid text so user can copy/paste from there
  */
-function ExportASCIITool(canvas, toolId, canvasWidgetSelectorId, widgetSelectorId){
-	this.canvas = canvas;
-	this.toolId = toolId;
-	this.canvasWidget = $(canvasWidgetSelectorId);
-	this.exportWidget = $(widgetSelectorId);
-	this.mode = 0;
-	this.init();
-}
-
-ExportASCIITool.prototype = {
-	init : function(){
+class ExportASCIITool extends CanvasTool {
+ 	constructor(toolId, canvas, canvasWidgetSelectorId, widgetSelectorId){
+		super(toolId);
+		this.canvas = canvas;
+		this.toolId = toolId;
+		this.canvasWidget = $(canvasWidgetSelectorId);
+		this.exportWidget = $(widgetSelectorId);
+		this.mode = 0;
+		this.init();
+	}
+	init(){
 		$(this.widget).hide();
 		$("#dialog-textarea").keyup(function(event) {
 			if (event.keyCode == KeyEvent.DOM_VK_ESCAPE){
@@ -1747,9 +1706,7 @@ ExportASCIITool.prototype = {
 			this.close();
 		}.bind(this));*/
 	}
-	, click : function(elementId){
-		this.canvas.click(elementId);
-		if (this.canvas.getActiveTool() != this.toolId) return;
+	click(){
 		if (this.mode == 1){
 			this.close();
 			return;
@@ -1763,34 +1720,35 @@ ExportASCIITool.prototype = {
 	    $this.select();
 		});*/
   }
-  , close : function() {
+  close() {
 		$(this.exportWidget).hide();
 		$(this.canvasWidget).show();
 		$("#dialog-textarea").val("");
 		this.mode = 0;
 	}
 }
-
 //------------------------------------------------- MOUSE CONTROLLER ------------------------------------------------//
 
-function MouseController(canvas) {
-	this.class = 'MouseController';
+function CanvasController(canvas) {
+	this.class = 'CanvasController';
 	this.canvas = canvas;
+	this.tools = {};
+	this.shiftKeyEnabled = false;
+	this.dummyTool = new CanvasTool();
 	this.canvasHTML = canvas.getCanvasHTML();
 	this.init();
-	this.setActiveElement("select-button");
 	this.lastPointerCoord = null;
+	// visual only: adapt canvas container
+	$("#canvas-container").width(this.canvas.getWidth());
+	// select first cell, so user can start writing right from start
+	this.canvas.setSelectedCell(new Coord(0,0));
 }
 
-MouseController.prototype = {
+CanvasController.prototype = {
 	init : function() {
 		$("#tools > button.tool").click(function(eventObject) {
-			// get id of clicked button
-			elementId = eventObject.target.id;
-			// visual effect: set active button
-			this.setActiveElement(elementId);
-			// invoke tool
-			this.canvas.click(elementId);
+			// active tool
+			this.setActiveTool(eventObject.target.id);
 		}.bind(this));
 		// bind mouse action for handling the drawing
 		$(this.canvas.getCanvasHTML()).mousedown(function(eventObject) {
@@ -1798,39 +1756,110 @@ MouseController.prototype = {
 			this.canvas.mouseDown(eventObject);
 			this.lastPointerCoord = this.getGridCoord(eventObject);
 			this.canvas.cellDown(this.lastPointerCoord);
+			// invoke active tool
+			try{
+				this.getActiveTool().mouseDown(eventObject);
+				this.getActiveTool().cellDown(this.lastPointerCoord);
+			} catch(e){
+				console.error(e.stack);
+			}
 		}.bind(this));
 		$(this.canvas.getCanvasHTML()).mouseup(function() {
 			// propagate event
 			this.canvas.mouseUp();
 			this.canvas.cellUp(this.lastPointerCoord);
+			try{
+				this.getActiveTool().mouseUp();
+				this.getActiveTool().cellUp(this.lastPointerCoord);
+			} catch(e){
+				console.error(e.stack);
+			}
 		}.bind(this));
 		$(this.canvas.getCanvasHTML()).mouseenter(function() {
 			this.canvas.getCanvasHTML().style.cursor = this.canvas.cursor();
 			this.canvas.mouseEnter();
+			try{
+				this.getActiveTool().mouseEnter();
+			} catch(e){
+				console.error(e.stack);
+			}
 		}.bind(this));
 		$(this.canvas.getCanvasHTML()).mousemove(function(eventObject) {
 			// propagate event
 			this.canvas.mouseMove(eventObject);
 			this.lastPointerCoord = this.getGridCoord(eventObject);
 			this.canvas.cellMove(this.lastPointerCoord);
+			try{
+				this.getActiveTool().mouseMove(eventObject);
+				this.getActiveTool().cellMove(this.lastPointerCoord);
+			} catch(e){
+				console.error(e.stack);
+			}
 		}.bind(this));
 		$(this.canvas.getCanvasHTML()).mouseleave(function() {
-			this.canvas.canvasMouseLeave();
+			this.canvas.mouseLeave();
+			try{
+				this.getActiveTool().mouseLeave();
+			} catch(e){
+				console.error(e.stack);
+			}
 		}.bind(this));
 		$(window).keydown(function(eventObject) {
+			if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
+				this.shiftKeyEnabled = true;
+			}
 			this.canvas.keyDown(eventObject);
+			try{
+				this.getActiveTool().keyDown(eventObject);
+			} catch(e){
+				console.error(e.stack);
+			}
 		}.bind(this));
 		$(document).keypress(function(eventObject) {
 			this.canvas.keyPress(eventObject);
+			try{
+				this.getActiveTool().keyPress(eventObject);
+			} catch(e){
+				console.error(e.stack);
+			}
 		}.bind(this));
 		$(window).keyup(function(eventObject) {
+			if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
+				this.shiftKeyEnabled = false;
+			}
 			this.canvas.keyUp(eventObject);
+			try{
+				this.getActiveTool().keyUp(eventObject);
+			} catch(e){
+				console.error(e.stack);
+			}
 		}.bind(this));
 	}
-	,setActiveElement : function(elementId){
-		// toggle active button (visual feature only)
-		$("#tools > button.tool").removeClass("active");
-		$("#" + elementId).toggleClass("active");
+	,addTool : function(tool){
+		this.tools[tool.getId()] = tool;
+	}
+	,getActiveTool : function(){
+		if (this.shiftKeyEnabled) return this.dummyTool;
+		for (var tool in this.tools){
+			if (this.tools[tool].isEnabled()){
+					return this.tools[tool];
+			}
+		}
+		return null;
+	}
+	,setActiveTool : function(elementId){
+		try {
+			// toggle active button (visual feature only)
+			$("#tools > button.tool").removeClass("active");
+			$("#" + elementId).toggleClass("active");
+			// enable tool
+			for (var tool in this.tools){
+				this.tools[tool].setEnabled(this.tools[tool].getId() == elementId);
+			}
+			this.getActiveTool().click();
+		}catch(e){
+			console.error(e.stack);
+		}
 	}
 	, getGridCoord: function(mouseEvent){
 		// get HTML canvas relative coordinates
@@ -1869,41 +1898,36 @@ MouseController.prototype = {
  * Since the wrapper mechanism is emulated (based on copying object properties), I have to make use of this.$ variable to reference the real 'this'.
  */
 function init(){
-
+	// initialize grid
 	var grid = new Grid();
-
 	// initialize canvas
 	var canvas = delegateProxy(new ASCIICanvas(document.getElementById("ascii-canvas"),grid),"grid");
 	// add canvas movability
 	canvas = delegateProxy(new MovableCanvas(canvas, "#canvas-container"), "canvas");
 	// add canvas zoom feature
 	canvas = delegateProxy(new ZoomableCanvas(canvas), "canvas");
-	// add click, keyboard & mouse capabilities
-	canvas = delegateProxy(new ToolableCanvas(canvas), "canvas");
 	// add ascii drawing capabilities
 	canvas = delegateProxy(new DrawableCanvas(canvas), "canvas");
 	// add ascii drawing capabilities with style
 	canvas = delegateProxy(new StylableCanvas(canvas), "canvas");
 	// add cursor decorator
 	canvas = delegateProxy(new PointerDecorator(canvas, "pointer-button"), "canvas");
-	// add selection capabilities
-	canvas = delegateProxy(new SelectTool(canvas, "select-button"), "canvas");
 	// add char writing capabilities
-	canvas = delegateProxy(new CharWriterDecorator(canvas), "canvas");
+	canvas = delegateProxy(new WritableCanvas(canvas), "canvas");
+	// instantiate canvas controller (mouse control, keyboard control, tools, etc)
+	var controller = new CanvasController(canvas);
 	// add clear canvas capabilities
-	canvas = delegateProxy(new ClearCanvasTool(canvas, "clear-button"), "canvas");
+	controller.addTool(new ClearCanvasTool("clear-button",canvas));
 	// add set/edit text capabilities
-	canvas = delegateProxy(new TextEditTool(canvas, "text-button"), "canvas");
+	controller.addTool(new EditTextTool("text-button",canvas));
+	// add export to ascii capabilities
+	controller.addTool(new ExportASCIITool("export-button", canvas, "#canvas-container", "#dialog-widget"));
 	// add draw box capabilities
-	canvas = delegateProxy(new BoxDrawerTool(canvas, "box-button"), "canvas");
-	// add export capabilities
-	canvas = delegateProxy(new ExportASCIITool(canvas, "export-button", "#canvas-container", "#dialog-widget"), "canvas");
-	// initialize mouse controller
-	new MouseController(canvas);
-	// visual only: adapt canvas container
-	$("#canvas-container").width(canvas.getWidth());
-	// select first cell, so user can start writing right from start
-	canvas.setSelectedCell(new Coord(0,0));
+	controller.addTool(new BoxDrawerTool("box-button", canvas));
+	// add selection capabilities
+	controller.addTool(new SelectTool("select-button", canvas));
+	// set default tool
+	controller.setActiveTool("select-button");
 	// start animation loop
 	animate(canvas);
 }

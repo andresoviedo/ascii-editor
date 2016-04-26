@@ -22,48 +22,63 @@ News (26/04/2016)
 - Working on it...
 
 
-Features already implemented
-============================
+Design
+======
 
 - HTML canvas technology
-- JavaScript technology. JQuery framework
-- Object oriented design. Design patterns: Decorator Pattern, Layers Pattern, Proxy Pattern
-- Mouse controller
-- Canvas grid
+- JavaScript ECMAScript6 technology (Classes & Proxies)
+- Object oriented design. Classes, Inheritance,
+- Patters design: Layers Pattern, Decorator Pattern, Proxy Pattern
+- JQuery framework (just for manipulating DOM)
+
+
+Features implemented
+====================
+
+- Canvas controller (mouse click, mouse wheel, mouse drag, key down, key press, key up)
+- Canvas grid (100 x 200)
+- Scrollable canvas (mouse wheel)
 - Zoomable canvas (shift + mouse wheel)
 - Movable canvas (shift + mouse drag)
 - Resizable canvas (on windows resize)
-- Canvas cursor & pointer
-- Arrow keys controls the canvas cursor
-- Drag to select area, clear or move it
-- Write/Edit text (2 ways: online & using input text widget)
-- Draw boxes & resize them
-- Move single lines
-- Select box / move box
-- Clear canvas
-- Storage support to resume work
+- Canvas cursor & pointer (arrow keys can control the cursor)
+- Write chars
 - Draw with different line styles
-- Export to ASCII
+- HTML Storage support to resume work
+- Tools:
+ - Add / Edit text
+ - Draw / Resize boxes (move lines also)
+ - Select Area / Clear / Move it
+ - Select Box / Move it
+ - Clear canvas
+ - Export to ASCII (so you can copy / paste)
 
 
-Still to be implemented
-=======================
+Still to be implement (in order of priority)
+============================================
 
 - import ASCII
 - cut / copy / paste
+- trim to export (remove unnecessary lines, columns)
+- export indented (so it can be copied then to README.md files - should start with 4 spaces)
+- implement box connectors (lines, arrows)
+- make size of canvas configurable / resizable
 - undo / redo
-- trim export (remove unnecessary lines, columns)
-- redesign tools to observer pattern
-- implement connectors
-- resize shape if writing text inside
-- make size of canvas configurable
-- save / restore configuration 
-- fix state machine for all tools (like I did in SelectTool)
-- select shape / move shape
-- handle return key / handle printing F2 / handle find (F3)
-- implement chars library
-- implement tables
+
+
+Nice to have
+============
+
+- text behaviour: handle return key when writing chars
+- text behaviour: resize shape if writing text inside
+- save / restore configuration (zoom for example)
+- implement tables (add columns, add rows)
+- select shape / move shape (not just boxes, but tables)
+- implement chars library (choose char from unicode list)
 - integrate ASCII library
+- improve / beautify UI
+- fix state machine for all tools (like I did in SelectTool)
+- handle keyboard functions: printing F2 / handle find F3 / handle full screen F11
 - many more...
 
 
