@@ -538,23 +538,20 @@ Box.prototype = {
 /**
  * Encapsulates data for the surrounding pixels
  */
-function PixelContext(left, right, top, bottom) {
-	this.class = 'PixelContext';
-	this.left = left;
-	this.right = right;
-	this.bottom = bottom;
-	this.top = top;
-}
-
-/**
- * Return the number of surrounding pixels
- */
-PixelContext.prototype = {
-	getLength : function() {
-		return this.left + this.right + this.bottom + this.top;
+class PixelContext {
+	constructor(left, right, top, bottom){
+		this.class = 'PixelContext';
+		this.left = left;
+		this.right = right;
+		this.bottom = bottom;
+		this.top = top;
+		this.length = this.left + this.right + this.bottom + this.top;
 	}
-	, toString : function() {
-			return "PixelContext["+this.left+","+this.right+","+this.bottom+","+this.top+"]";
+	getLength() {
+		return this.length;
+	}
+	toString() {
+		return "PixelContext["+this.left+","+this.right+","+this.bottom+","+this.top+"]";
 	}
 }
 
@@ -704,7 +701,7 @@ DrawableCanvas.prototype = {
 		if (text.startsWith("\n")) text = text.substring(1);
 		return text;
 	}
-	, getFinalCoords : function(coord, diff) {
+	/*, getFinalCoords2 : function(coord, diff) {
 	  for (var coordCopy = coord.clone(), ret = [];;) {
 	    var contextCoord = coordCopy.add(diff);
 	    if (!this.isDrawChar(this.canvas.getPixel(contextCoord))) {
@@ -713,8 +710,8 @@ DrawableCanvas.prototype = {
 	    coordCopy = contextCoord;
 	    3 == this.getPixelContext(coordCopy).getLength() && ret.push(coordCopy);
 	  }
-	}
-	, getFinalCoords2 : function(coord, diff) {
+	}*/
+	, getFinalCoords : function(coord, diff) {
 		var ret = [];
 	  for (i=0, currentCord = coord;;i++) {
 	    var nextCoord = currentCord.add(diff);
@@ -723,7 +720,7 @@ DrawableCanvas.prototype = {
 				return ret;
 	    }
 	    currentCord = nextCoord;
-	    if(this.getPixelContext(currentCord).getLength() == 3){
+	    if(this.getPixelContext(currentCord).getLength() >= 3){
 				ret.push(currentCord);
 			}
 	  }
@@ -737,8 +734,7 @@ DrawableCanvas.prototype = {
 				isHorizontal = contextCoords[direction].x != 0;
 				startWithArrow = arrowChars1.indexOf(this.canvas.getPixel(coord).getValue()) != -1;
 				endWithArrow = arrowChars1.indexOf(this.canvas.getPixel(endPoint).getValue()) != -1;
-				contextLength = this.getPixelContext(endPoint).getLength();
-				endPointInfo = new EndPointInfo(endPoint, contextLength, isHorizontal, startWithArrow, endWithArrow);
+				endPointInfo = new EndPointInfo(endPoint, this.getPixelContext(endPoint), isHorizontal, startWithArrow, endWithArrow);
 				endPointsInfo.push(endPointInfo);
 				if (length == 1) {
 					//console.log("Found simple endpoint: "+endPointInfo);
@@ -750,9 +746,9 @@ DrawableCanvas.prototype = {
 						if (contextCoords[direction].add(contextCoords[direction2]).length() == 0) continue;
 						if (contextCoords[direction].add(contextCoords[direction2]).length() == 2) continue;
 						var endPoints2 = this.getFinalCoords(endPoint, contextCoords[direction2]);
-						if (endPoints2.length > 0){
-							contextLength2 = this.getPixelContext(endPoints2[0]).getLength();
-							ep2 = new EndPointInfo(endPoints2[0], contextLength2, isHorizontal, startWithArrow, -1 != arrowChars1.indexOf(this.canvas.getPixel(endPoints2[0]).getValue()), endWithArrow);
+						for (var endPointIndex2 in endPoints2){
+							ep2 = new EndPointInfo(endPoints2[endPointIndex2], this.getPixelContext(endPoints2[endPointIndex2]), isHorizontal,
+								startWithArrow, -1 != arrowChars1.indexOf(this.canvas.getPixel(endPoints2[endPointIndex2]).getValue()), endWithArrow);
 							endPointInfo.childEndpoints.push(ep2);
 							// console.log("Found child endpoint: "+ep2);
 						}
@@ -1391,6 +1387,7 @@ class SelectTool extends CanvasTool {
 		if (this.mouseStatus == "down") {
 				this.endPointsInfo = this.canvas.detectEndPoints(this.startCoord);
 				this.selectedBox = this.detectBox(coord);
+				this.connectedEndpoints = this.detectConnectedBoxes(this.selectedBox);
 				return;
 		}
 		if (this.action != "select-shape" && this.action != "select-shape-moving" && this.action != "select-shape-finalized") return;
@@ -1408,24 +1405,55 @@ class SelectTool extends CanvasTool {
 		if (this.selectedBox == null) return;
 		// move box
 		this.canvas.rollback();
-		this.canvas.moveArea(this.selectedBox,coord.substract(this.startCoord));
+		this.canvas.moveArea(this.selectedBox.box,coord.substract(this.startCoord));
 		this.changed = true;
 	}
 	detectBox(coord){
-		// console.log("yupi! "+this.endPointsInfo);
-		if (this.endPointsInfo.length == 2 && this.endPointsInfo[0].contextLength == 2 && this.endPointsInfo[1].contextLength == 2
-			&& this.endPointsInfo[0].childEndpoints.length > 0 && this.endPointsInfo[1].childEndpoints.length > 0
-			&& this.endPointsInfo[0].childEndpoints[0].position.hasSameAxis(this.endPointsInfo[1].childEndpoints[0].position)){
-			if (this.endPointsInfo[0].childEndpoints[0].position.equals(this.endPointsInfo[1].childEndpoints[0].position)){
-				// its a box
-				return new Box(this.startCoord,this.endPointsInfo[0].childEndpoints[0].position);
-			}
-			else if (this.canvas.isDrawCharArea(new Box(this.endPointsInfo[0].childEndpoints[0].position,this.endPointsInfo[1].childEndpoints[0].position))){
-				// its yet a box
-				return new Box(this.endPointsInfo[0].position, this.endPointsInfo[1].childEndpoints[0].position);
+		// detect corner endpoints
+		var cornerEndPoints = [];
+		var connectionEndPoints = [];
+		if (this.endPointsInfo.length >= 2){
+			for (var endPointIdx in endPointsInfo){
+				if (endPointsInfo[endPointIdx].isCorner()){
+					cornerEndPoints.push(endPointsInfo[endPointIdx]);
+				} else if (endPointsInfo[endPointIdx].context.length >= 3){
+					connectionEndPoints.push(endPointsInfo[endPointIdx]);
+				}
 			}
 		}
+		// we need at least 2 corners to start detecting the box
+		if (cornerEndPoints.length < 2) return;
+		var epCorner1 = cornerEndPoints[0], epCorner2 = cornerEndPoints[1];
+		// get child corners
+		var childCorners1 = epCorner1.getCorners(), childCorners2 = epCorner2.getCorners();
+		if (!childCorners1 || !childCorners2 || childCorners1.length == 0 || childCorners2.length == 0) return;
+		// we need both childs to be in the same axis
+		if (!childCorners1[0].position.hasSameAxis(childCorners2[0].position)) return;
+		// test whether the clicked coord its in a corner
+		var startCoordIsCorner = epCorner1.isHorizontal != epCorner2.isHorizontal;
+		// test if both childs are the opposite corner
+		if (startCoordIsCorner && childCorners1[0].position.equals(childCorners2[0].position)){
+			console.log("Detected box type 1");
+			return new BoxInfo(new Box(this.startCoord,childCorners1[0].position),connectionEndPoints);
+		}
+		// test whether the user click on a side of the box
+		if (!startCoordIsCorner && this.canvas.isDrawCharArea(new Box(childCorners1[0].position,childCorners2[0].position))){
+			console.log("Detected box type 2");
+			return new BoxInfo(new Box(epCorner1.position, childCorners2[0].position),connectionEndPoints);
+		}
 		return null;
+	}
+	detectConnectedBoxes(boxInfo){
+		if (boxInfo == null) return null;
+		var connectorEndPoints = boxInfo.connectors;
+		var possibleBoxEndpoints = [];
+		for (var endPointIdx in connectorEndPoints){
+			var endPoint = connectorEndPoints[endPointIdx];
+			// TODO: handle tables
+			if (endPoint.context.length == 3){
+				// TODO: get connected box by looking at the direction pointing outside the box
+			}
+		}
 	}
 }
 
@@ -1518,25 +1546,43 @@ class EditTextTool extends CanvasTool {
 	}
 }
 
-function EndPointInfo(position,contextLength,isHorizontal,startWithArrow, endWithArrow, endWithArrow2){
-  this.class = "EndPointInfo";
-  this.position = position;
-	this.contextLength = contextLength;
-  this.isHorizontal = isHorizontal;
-  this.startWithArrow = startWithArrow;
-  this.endWithArrow = endWithArrow;
-  this.endWithArrow2 = endWithArrow2;
-	this.childEndpoints = null;
-}
-
-EndPointInfo.prototype = {
-	toString : function(){
-		return "EndPointInfo: position '"+this.position+"', contextLength '"+this.contextLength+"', isHorizontal '"+this.isHorizontal
+class EndPointInfo {
+	constructor(position,context,isHorizontal,startWithArrow, endWithArrow, endWithArrow2){
+	  this.class = "EndPointInfo";
+	  this.position = position;
+		this.context = context;
+	  this.isHorizontal = isHorizontal;
+	  this.startWithArrow = startWithArrow;
+	  this.endWithArrow = endWithArrow;
+	  this.endWithArrow2 = endWithArrow2;
+		this.childEndpoints = null;
+	}
+	isCorner(){
+		return this.context.length == 2 && this.context.bottom != this.context.top && this.context.left != this.context.rigth;
+	}
+	getCorners(){
+		if (this.childEndpoints == null) return null;
+		var cornerEndPoints = [];
+		for (var endPointIdx in this.childEndpoints){
+			if (this.childEndpoints[endPointIdx].isCorner()){
+				cornerEndPoints.push(this.childEndpoints[endPointIdx]);
+			}
+		}
+		return cornerEndPoints;
+	}
+	toString(){
+		return "EndPointInfo: position '"+this.position+"', context '"+this.context+"', isHorizontal '"+this.isHorizontal
 		+"', startWithArrow '"+this.startWithArrow+"', endWithArrow '"+this.endWithArrow+"', endWithArrow2 '"+this.endWithArrow2
 		+"', childEndpoints '"+this.childEndpoints+"'";
 	}
 }
 
+class BoxInfo {
+	constructor(box,connectors){
+		this.box = box;
+		this.connectors = connectors;
+	}
+}
 
 /**
  * This is the function to draw boxes. Basically it needs 2 coordinates: startCoord and endCoord.
@@ -1591,10 +1637,10 @@ class BoxDrawerTool extends CanvasTool {
 			// what we are doing?
 			var action = null;
 			// detect whether we are moving a line or doing something else
-			if (this.endPointsInfo.length == 2 && this.endPointsInfo[0].contextLength == 1 && this.endPointsInfo[1].contextLength == 1
+			if (this.endPointsInfo.length == 2 && this.endPointsInfo[0].context.length == 1 && this.endPointsInfo[1].context.length == 1
 				&& this.endPointsInfo[0].position.hasSameAxis(this.endPointsInfo[1].position)){
 				action = "moving-line";
-			} else if (this.endPointsInfo.length == 2 && this.endPointsInfo[0].contextLength == 2 && this.endPointsInfo[1].contextLength == 2
+			} else if (this.endPointsInfo.length == 2 && this.endPointsInfo[0].context.length == 2 && this.endPointsInfo[1].context.length == 2
 				&& this.endPointsInfo[0].childEndpoints.length > 0 && this.endPointsInfo[1].childEndpoints.length > 0
 				&& this.endPointsInfo[0].childEndpoints[0].position.hasSameAxis(this.endPointsInfo[1].childEndpoints[0].position)){
 				if (this.endPointsInfo[0].childEndpoints[0].position.equals(this.endPointsInfo[1].childEndpoints[0].position)){
