@@ -73,7 +73,7 @@ Coord.prototype = {
 	, substract : function(other){
 		return new Coord(this.x - other.x, this.y - other.y);
 	}
-	, length : function() {
+	, getLength : function() {
 	  return Math.sqrt(this.x * this.x + this.y * this.y);
 	}
 	, clone : function() {
@@ -517,6 +517,9 @@ function Box(coordA, coordB) {
 	this.maxY = Math.max(coordA.y, coordB.y);
 	this.min = new Coord(this.minX, this.minY);
 	this.max = new Coord(this.maxX, this.maxY);
+	this.midX = Math.floor((this.maxX + this.minX) / 2)
+	this.midY = Math.floor((this.maxY + this.minY) / 2)
+	this.mid = new Coord(this.midX, this.midY);
 }
 
 Box.prototype = {
@@ -531,7 +534,7 @@ Box.prototype = {
 		return (this.maxX-this.minX+1)*(this.maxY-this.minY+1);
 	}
 	, toString : function(){
-		return "Box: ('"+this.min+"'->'"+this.max+"')";
+		return "Box: ('"+this.min+"'->'"+this.max+"', mid:"+this.mid+")";
 	}
 }
 
@@ -584,13 +587,18 @@ DrawableCanvas.prototype = {
 		var bottom = this.isDrawChar(this.canvas.getPixel(coord.add(bottomCoord)));
 		return new PixelContext(left, right, top, bottom);
 	}
+	, drawLine : function(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections) {
+		// console.log("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
+		if (drawHorizontalFirst == "step-horizontal" || drawHorizontalFirst == "step-vertical"){
+			return this.drawLineImpl2(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections);
+		}
+		return this.drawLineImpl(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections);
+	}
 	/**
 	 * This functions draws a line of pixels from startCoord to endCoord. The line can be drawn 2 ways: either first horizontal line of first vertical line.
 	 * For drawing boxes, the line should be drawn both ways.
 	 */
-	, drawLine : function(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections) {
-		// console.log("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
-
+	, drawLineImpl : function(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections) {
 		// calculate box so we know from where to where we should draw the line
 		var box = new Box(startCoord, endCoord), minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY;
 
@@ -612,6 +620,15 @@ DrawableCanvas.prototype = {
 			if (ommitIntersections && (pixelContext.left+pixelContext.right==2)) finalValue = null;
 			this.grid.stackPixel(newCoord, pixelValue);
 		}
+	}
+	// draw stepped line
+	, drawLineImpl2 : function(startCoord, endCoord, drawMode, pixelValue, ommitIntersections) {
+		var box = new Box(startCoord, endCoord), minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY;
+		var midCoord1 = drawMode == "step-horizontal"? new Coord(box.midX, startCoord.y) : new Coord(startCoord.x, box.midY);
+		var midCoord2 = drawMode == "step-horizontal"? new Coord(box.midX, endCoord.y) : new Coord(endCoord.x, box.midY);
+		this.drawLineImpl(startCoord, midCoord1, drawMode == "step-horizontal", pixelValue, ommitIntersections);
+		this.drawLineImpl(midCoord1, midCoord2, drawMode != "step-horizontal", pixelValue, ommitIntersections);
+		this.drawLineImpl(midCoord2, endCoord, drawMode == "step-horizontal", pixelValue, ommitIntersections);
 	}
 	, getTextStart : function(startCoord) {
 		// guess where the text starts
@@ -701,20 +718,10 @@ DrawableCanvas.prototype = {
 		if (text.startsWith("\n")) text = text.substring(1);
 		return text;
 	}
-	/*, getFinalCoords2 : function(coord, diff) {
-	  for (var coordCopy = coord.clone(), ret = [];;) {
-	    var contextCoord = coordCopy.add(diff);
-	    if (!this.isDrawChar(this.canvas.getPixel(contextCoord))) {
-	      return coord.equals(coordCopy) || ret.push(coordCopy), ret;
-	    }
-	    coordCopy = contextCoord;
-	    3 == this.getPixelContext(coordCopy).getLength() && ret.push(coordCopy);
-	  }
-	}*/
-	, getFinalCoords : function(coord, diff) {
+	, getFinalCoords : function(coord, direction) {
 		var ret = [];
 	  for (i=0, currentCord = coord;;i++) {
-	    var nextCoord = currentCord.add(diff);
+	    var nextCoord = currentCord.add(direction);
 	    if (!this.isDrawChar(this.canvas.getPixel(nextCoord))) {
 	      if(!currentCord.equals(coord)) ret.push(currentCord);
 				return ret;
@@ -723,6 +730,36 @@ DrawableCanvas.prototype = {
 	    if(this.getPixelContext(currentCord).getLength() >= 3){
 				ret.push(currentCord);
 			}
+	  }
+	}
+	// Detect the final endpoint of a line. The line should not be necessarily straight
+	, getFinalEndPoint : function(coord, direction) {
+	  for (var i=0, currentCoord = coord, currentDirection = direction; i< 1000;i++) {
+			var currentPixelContext = this.getPixelContext(currentCoord);
+	    var nextCoord = currentCoord.add(currentDirection);
+			var isNextPixelDrawChar = this.isDrawChar(this.canvas.getPixel(nextCoord));
+			if(currentPixelContext.getLength() == 2 && isNextPixelDrawChar){ currentCoord = nextCoord; continue; }
+			if(currentPixelContext.getLength() >= 3 && !currentCoord.equals(coord)) return currentCoord;
+			if(currentPixelContext.left && currentDirection.add(leftCoord).getLength() != 0) { currentCoord = currentCoord.add(leftCoord); currentDirection = leftCoord; continue; }
+			if(currentPixelContext.right && currentDirection.add(rightCoord).getLength() != 0) { currentCoord = currentCoord.add(rightCoord); currentDirection = rightCoord; continue; }
+			if(currentPixelContext.top && currentDirection.add(topCoord).getLength() != 0) { currentCoord = currentCoord.add(topCoord); currentDirection = topCoord; continue; }
+			if(currentPixelContext.bottom && currentDirection.add(bottomCoord).getLength() != 0) { currentCoord = currentCoord.add(bottomCoord); currentDirection = bottomCoord; continue; }
+			return currentCoord.equals(coord)? null : currentCoord;
+	  }
+	}
+	, getLinePoints : function(coord, direction) {
+		var ret = [coord];
+	  for (var i=0, currentCoord = coord, currentDirection = direction; i< 1000;i++) {
+			var currentPixelContext = this.getPixelContext(currentCoord);
+	    var nextCoord = currentCoord.add(currentDirection);
+			var isNextPixelDrawChar = this.isDrawChar(this.canvas.getPixel(nextCoord));
+			if(currentPixelContext.getLength() == 2 && isNextPixelDrawChar){ ret.push(currentCoord); currentCoord = nextCoord; continue; }
+			if(currentPixelContext.getLength() >= 3 && !currentCoord.equals(coord)) return ret.push(currentCoord), ret;
+			if(currentPixelContext.left && currentDirection.add(leftCoord).getLength() != 0) { ret.push(currentCoord); currentCoord = currentCoord.add(leftCoord); currentDirection = leftCoord; continue; }
+			if(currentPixelContext.right && currentDirection.add(rightCoord).getLength() != 0) { ret.push(currentCoord); currentCoord = currentCoord.add(rightCoord); currentDirection = rightCoord; continue; }
+			if(currentPixelContext.top && currentDirection.add(topCoord).getLength() != 0) { ret.push(currentCoord); currentCoord = currentCoord.add(topCoord); currentDirection = topCoord; continue; }
+			if(currentPixelContext.bottom && currentDirection.add(bottomCoord).getLength() != 0) { ret.push(currentCoord); currentCoord = currentCoord.add(bottomCoord); currentDirection = bottomCoord; continue; }
+			return currentCoord.equals(coord)? null : ret.push(currentCoord), ret;
 	  }
 	}
 	, detectEndPoints : function(coord){
@@ -742,9 +779,10 @@ DrawableCanvas.prototype = {
 					// console.log("Found complex endpoint: "+endPointInfo);
 					endPointInfo.childEndpoints = [];
 					for (var direction2 in contextCoords) {
-						// dont go backwards or in the same direction
-						if (contextCoords[direction].add(contextCoords[direction2]).length() == 0) continue;
-						if (contextCoords[direction].add(contextCoords[direction2]).length() == 2) continue;
+						// dont go backwards
+						if (contextCoords[direction].add(contextCoords[direction2]).getLength() == 0) continue;
+						// dont go in the same direction
+						// if (contextCoords[direction].add(contextCoords[direction2]).getLength() == 2) continue;
 						var endPoints2 = this.getFinalCoords(endPoint, contextCoords[direction2]);
 						for (var endPointIndex2 in endPoints2){
 							ep2 = new EndPointInfo(endPoints2[endPointIndex2], this.getPixelContext(endPoints2[endPointIndex2]), isHorizontal,
@@ -1315,7 +1353,7 @@ class SelectTool extends CanvasTool {
 		if (this.mouseStatus == "up" && this.action == "select-shape-moving") return "select-shape-finalized";
 		if (this.mouseStatus == "up" && this.action == "select-area-in-progress") return "select-area-ready";
 		if (this.mouseStatus == "up" && this.action == "select-area-moving") return "select-area-finalized";
-		if (this.mouseStatus == "leave") return "all";
+		if (this.mouseStatus == "leave") return "rollback";
 		return undefined;
 	}
 	selectArea (coord){
@@ -1387,7 +1425,7 @@ class SelectTool extends CanvasTool {
 		if (this.mouseStatus == "down") {
 				this.endPointsInfo = this.canvas.detectEndPoints(this.startCoord);
 				this.selectedBox = this.detectBox(coord);
-				this.connectedEndpoints = this.detectConnectedBoxes(this.selectedBox);
+				this.detectConnectedBoxes(this.selectedBox);
 				return;
 		}
 		if (this.action != "select-shape" && this.action != "select-shape-moving" && this.action != "select-shape-finalized") return;
@@ -1405,19 +1443,30 @@ class SelectTool extends CanvasTool {
 		if (this.selectedBox == null) return;
 		// move box
 		this.canvas.rollback();
+		this.stackConnections(this.selectedBox);
 		this.canvas.moveArea(this.selectedBox.box,coord.substract(this.startCoord));
+		this.drawConnections(this.selectedBox,coord.substract(this.startCoord));
 		this.changed = true;
 	}
 	detectBox(coord){
-		// detect corner endpoints
+		// detect corner endpoints & connection endpoints
 		var cornerEndPoints = [];
 		var connectionEndPoints = [];
 		if (this.endPointsInfo.length >= 2){
 			for (var endPointIdx in endPointsInfo){
-				if (endPointsInfo[endPointIdx].isCorner()){
-					cornerEndPoints.push(endPointsInfo[endPointIdx]);
-				} else if (endPointsInfo[endPointIdx].context.length >= 3){
-					connectionEndPoints.push(endPointsInfo[endPointIdx]);
+				var endPointInfo = endPointsInfo[endPointIdx];
+				if (endPointInfo.isCorner()){
+					cornerEndPoints.push(endPointInfo);
+				} else if (endPointInfo.context.length >= 3){
+					connectionEndPoints.push(endPointInfo);
+				}
+				if (endPointInfo.childEndpoints.length > 0){
+					for (var endPointIdx2 in endPointInfo.childEndpoints){
+						var endPointInfo2 = endPointInfo.childEndpoints[endPointIdx2];
+						if (endPointInfo2.context.length >= 3){
+							connectionEndPoints.push(endPointInfo2);
+						}
+					}
 				}
 			}
 		}
@@ -1451,8 +1500,33 @@ class SelectTool extends CanvasTool {
 			var endPoint = connectorEndPoints[endPointIdx];
 			// TODO: handle tables
 			if (endPoint.context.length == 3){
-				// TODO: get connected box by looking at the direction pointing outside the box
+				var tDirection = this.getTDirection(endPoint.context);
+				var possibleBoxConnection = this.canvas.getLinePoints(endPoint.position, tDirection);
+				if (possibleBoxConnection != null){
+					boxInfo.connections.push(new Connection(possibleBoxConnection));
+				}
 			}
+		}
+	}
+	getTDirection(pixelContext){
+		if (pixelContext.length != 3) throw new Error("This is not a T connected pixel");
+		if (!pixelContext.left) return rightCoord;
+		if (!pixelContext.right) return leftCoord;
+		if (!pixelContext.top) return bottomCoord;
+		if (!pixelContext.bottom) return topCoord;
+	}
+	stackConnections(boxInfo){
+		if (boxInfo.connections.length > 0){
+			var connection = boxInfo.connections[0];
+			for (var point in connection.points){
+				this.canvas.stackPixel(connection.points[point]," ");
+			}
+		}
+	}
+	drawConnections(boxInfo,coordDiff){
+		if (boxInfo.connections.length > 0){
+			var connection = boxInfo.connections[0];
+			this.canvas.drawLine(connection.points[0].add(coordDiff), connection.points[connection.points.length-1], "step-horizontal", "-");
 		}
 	}
 }
@@ -1581,6 +1655,13 @@ class BoxInfo {
 	constructor(box,connectors){
 		this.box = box;
 		this.connectors = connectors;
+		this.connections = [];
+	}
+}
+
+class Connection {
+	constructor(points){
+		this.points = points;
 	}
 }
 

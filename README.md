@@ -16,10 +16,24 @@ Try it!
 * http://www.andresoviedo.org/ascii-editor
 
 
-News (26/04/2016)
+Example
+=======
+
+This is an example of what you can draw with the app
+
+                                                                                                                                                                                                        
+      +-----------------------+                 ┌───────────────────────┐                                                                                                                               
+      |                       |                 │                       │                                                                                                                               
+      |      BOX STYLE 1      |    connector    │     BOX STYLE 2       │                                                                                                                               
+      |                       +-----------------+                       │                                                                                                                               
+      |                       |                 │                       │                                                                                                                               
+      +-----------------------+                 └───────────────────────┘                                                                                                                               
+                                                                                                                                                                                                        
+
+News (27/04/2016)
 =================
 
-- Working on it...
+- Working on connectors...
 
 
 Design
