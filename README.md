@@ -21,16 +21,16 @@ Example
 
 This is an example of what you can draw with the app
 
-                                                                                                                                                                                                        
-      +-----------------------+                 ┌───────────────────────┐                                                                                                                               
-      |                       |                 │                       │                                                                                                                               
-      |      BOX STYLE 1      |    connector    │     BOX STYLE 2       │                                                                                                                               
-      |                       +-----------------+                       │                                                                                                                               
-      |                       |                 │                       │                                                                                                                               
-      +-----------------------+                 └───────────────────────┘                                                                                                                               
-                                                                                                                                                                                                        
 
-News (27/04/2016)
+      +-----------------------+                 ┌───────────────────────┐
+      |                       |                 │                       │  
+      |      BOX STYLE 1      |    connector    │     BOX STYLE 2       │  
+      |                       +-----------------+                       │  
+      |                       |                 │                       │  
+      +-----------------------+                 └───────────────────────┘  
+
+
+News (29/04/2016)
 =================
 
 - Working on connectors...
@@ -71,11 +71,12 @@ Features implemented
 Still to be implement (in order of priority)
 ============================================
 
+- improve connectors (reposition connector when its crossing the box)
+- draw lines
 - import ASCII
 - cut / copy / paste
 - trim to export (remove unnecessary lines, columns)
 - export indented (so it can be copied then to README.md files - should start with 4 spaces)
-- implement box connectors (lines, arrows)
 - make size of canvas configurable / resizable
 - undo / redo
 
