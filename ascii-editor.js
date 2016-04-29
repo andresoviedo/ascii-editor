@@ -590,12 +590,13 @@ DrawableCanvas.prototype = {
 		var bottom = this.isDrawChar(this.canvas.getPixel(coord.add(bottomCoord)));
 		return new PixelContext(left, right, top, bottom);
 	}
-	, drawLine : function(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections) {
+	, drawLine : function(startCoord, endCoord, mode, pixelValue, ommitIntersections) {
 		// console.log("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
-		if (drawHorizontalFirst == "step-horizontal" || drawHorizontalFirst == "step-vertical"){
-			return this.drawLineImpl2(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections);
+		if (mode == "horizontal-horizontal" || mode == "vertical-vertical"
+			|| mode == "vertical-horizontal" || mode == "vertical-horizontal"){
+			return this.drawLineImpl2(startCoord, endCoord, mode, pixelValue, ommitIntersections);
 		}
-		return this.drawLineImpl(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections);
+		return this.drawLineImpl(startCoord, endCoord, mode, pixelValue, ommitIntersections);
 	}
 	/**
 	 * This functions draws a line of pixels from startCoord to endCoord. The line can be drawn 2 ways: either first horizontal line of first vertical line.
@@ -626,12 +627,19 @@ DrawableCanvas.prototype = {
 	}
 	// draw stepped line
 	, drawLineImpl2 : function(startCoord, endCoord, drawMode, pixelValue, ommitIntersections) {
-		var box = new Box(startCoord, endCoord), minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY;
-		var midCoord1 = drawMode == "step-horizontal"? new Coord(box.midX, startCoord.y) : new Coord(startCoord.x, box.midY);
-		var midCoord2 = drawMode == "step-horizontal"? new Coord(box.midX, endCoord.y) : new Coord(endCoord.x, box.midY);
-		this.drawLineImpl(startCoord, midCoord1, drawMode == "step-horizontal", pixelValue, ommitIntersections);
-		this.drawLineImpl(midCoord1, midCoord2, drawMode != "step-horizontal", pixelValue, ommitIntersections);
-		this.drawLineImpl(midCoord2, endCoord, drawMode == "step-horizontal", pixelValue, ommitIntersections);
+		if (drawMode == "horizontal-horizontal" || drawMode == "vertical-vertical"){
+			var box = new Box(startCoord, endCoord), minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY;
+			var midCoord1 = null;
+			var midCoord2 = null;
+			if (drawMode == "horizontal-horizontal") { midCoord1 = new Coord(box.midX, startCoord.y); midCoord2 = new Coord(box.midX, endCoord.y); }
+			if (drawMode == "vertical-vertical") { midCoord1 = new Coord(startCoord.x, box.midY); midCoord2 = new Coord(endCoord.x, box.midY); }
+			this.drawLineImpl(startCoord, midCoord1, drawMode == "horizontal-horizontal", pixelValue, ommitIntersections);
+			this.drawLineImpl(midCoord1, midCoord2, drawMode != "horizontal-horizontal", pixelValue, ommitIntersections);
+			this.drawLineImpl(midCoord2, endCoord, drawMode == "horizontal-horizontal", pixelValue, ommitIntersections);
+		}
+		else if (drawMode == "horizontal-vertical" || drawMode == "vertical-horizontal"){
+			this.drawLineImpl(startCoord, endCoord, drawMode == "horizontal-vertical", pixelValue, ommitIntersections);
+		}
 	}
 	, getTextStart : function(startCoord) {
 		// guess where the text starts
@@ -1586,8 +1594,15 @@ class SelectTool extends CanvasTool {
 		for (var i in boxInfo.connections){
 			var connection = boxInfo.connections[i];
 			var horizontalLength = connection.getDirection().add(rightCoord).getLength();
-			var dir = horizontalLength == 0 || horizontalLength >= 2? "step-horizontal": "step-vertical";
-			this.canvas.drawLine(connection.points[0].add(coordDiff), connection.points[connection.points.length-1], dir, value);
+			var horizontalLength2 = connection.getEndDirection().add(rightCoord).getLength();
+			var dir = horizontalLength == 0 || Math.abs(horizontalLength) >= 2;
+			var dir2 = horizontalLength2 == 0 || Math.abs(horizontalLength2) >= 2;
+			var lineType = null;
+			if (dir && dir2) lineType = "horizontal-horizontal";
+			if (!dir && !dir2) lineType = "vertical-vertical";
+			if (dir && !dir2) lineType = "horizontal-vertical";
+			if (!dir && dir2) lineType = "vertical-horizontal";
+			this.canvas.drawLine(connection.points[0].add(coordDiff), connection.points[connection.points.length-1], lineType, value);
 		}
 	}
 }
@@ -1726,6 +1741,9 @@ class Connection {
 		this.points = points;
 	}
 	getDirection(){
+		return this.points[1].substract(this.points[0]);
+	}
+	getEndDirection(){
 		return this.points[this.points.length-1].substract(this.points[this.points.length-2]);
 	}
 }
