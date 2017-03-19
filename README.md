@@ -1,10 +1,15 @@
-![alt tag](https://github.com/andresoviedo/ascii-editor/blob/master/ascii-editor.png?raw=true)
+           _    ____   ____ ___ ___   _____    _ _ _             
+          / \  / ___| / ___|_ _|_ _| | ____|__| (_) |_ ___  _ __
+         / _ \ \___ \| |    | | | |  |  _| / _` | | __/ _ \| '__|
+        / ___ \ ___) | |___ | | | |  | |__| (_| | | || (_) | |   
+       /_/   \_\____/ \____|___|___| |_____\__,_|_|\__\___/|_|   
+
 
 ASCII Editor
 ============
 
 The basic idea of this project is to have an editor to design schemas, tables, drawings, etc. for making technical documentation that can be
-used into the ubiquitous README files.
+used into the ubiquitous README files with import and export functionality.
 
 There is already some tools in internet like the awesome asciiflow, but I need something more professional and the asciiflow tool is not open source;
 so I have decided to cook my own stuff and share it with the world :)
@@ -30,9 +35,11 @@ This is an example of what you can draw with the app
       +-----------------------+                 └───────────────────────┘  
 
 
-News (29/04/2016)
+News (13/07/2017)
 =================
 
+- Fixed backspace behaviour
+- Implemented Carriage Line Return handling
 - Working on connectors...
 
 
@@ -60,12 +67,12 @@ Features implemented
 - Draw with different line styles
 - HTML Storage support to resume work
 - Tools:
- - Add / Edit text
- - Draw / Resize boxes (move lines also)
- - Select Area / Clear / Move it
- - Select Box / Move it
- - Clear canvas
- - Export to ASCII (so you can copy / paste)
+  - Add / Edit text
+  - Draw / Resize boxes (move lines also)
+  - Select Area / Clear / Move it
+  - Select Box / Move it
+  - Clear canvas
+  - Export to ASCII (so you can copy / paste)
 
 
 Still to be implement (in order of priority)
@@ -84,7 +91,6 @@ Still to be implement (in order of priority)
 Nice to have
 ============
 
-- text behaviour: handle return key when writing chars
 - text behaviour: resize shape if writing text inside
 - save / restore configuration (zoom for example)
 - implement tables (add columns, add rows)
@@ -101,6 +107,7 @@ Alternatives
 ============
 
 * ascii-flow: http://asciiflow.com/
+* textik: https://textik.com/
 * sixteencolors: http://draw.sixteencolors.net
 * ascii-tables: https://ozh.github.io/ascii-tables/
 
@@ -117,7 +124,15 @@ Final Notes
 You are free to use this program while you keep this file and the authoring comments in the code. Any comments, suggestions or contributions are welcome.
 
 
-Contact Information
-===================
+Contact
+=======
 
 http://www.andresoviedo.org
+
+
+ChangeLog
+=========
+
+* 2017/03/19
+  * (f) Fixed backspace for removing chars
+  * (n) Added support for handling carriage line return key when entering text

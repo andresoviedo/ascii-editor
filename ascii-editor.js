@@ -592,6 +592,9 @@ DrawableCanvas.prototype = {
 	}
 	, drawLine : function(startCoord, endCoord, mode, pixelValue, ommitIntersections) {
 		// console.log("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
+		if (mode == "best"){
+			return this.drawLineImpl3(startCoord, endCoord, mode, pixelValue, ommitIntersections);
+		}
 		if (mode == "horizontal-horizontal" || mode == "vertical-vertical"
 			|| mode == "vertical-horizontal" || mode == "vertical-horizontal"){
 			return this.drawLineImpl2(startCoord, endCoord, mode, pixelValue, ommitIntersections);
@@ -641,8 +644,11 @@ DrawableCanvas.prototype = {
 			this.drawLineImpl(startCoord, endCoord, drawMode == "horizontal-vertical", pixelValue, ommitIntersections);
 		}
 	}
+	, drawLineImpl3 : function(startCoord, endCoord, drawMode, pixelValue, ommitIntersections) {
+		console.log("au");
+	}
 	, getTextStart : function(startCoord) {
-		// guess where the text starts
+		// guess where the text starts (leftmost col and upmost row)
 		var startingColumn = startCoord.x;
 		for (col=startingColumn; col>=0; col--){
 			pixel = this.grid.getPixel(new Coord(col,startCoord.y));
@@ -669,6 +675,32 @@ DrawableCanvas.prototype = {
 			startingRow = row;
 		}
 		return new Coord(startingColumn, startingRow);
+	}, getTextColStart : function(startCoord) {
+		// guess where the text starts
+		var chars_found = 0;
+		var startingColumn = startCoord.x;
+		for (col=startingColumn; col>=0; col--){
+			pixel = this.grid.getPixel(new Coord(col,startCoord.y));
+			if (this.isDrawChar(pixel)){
+				break;
+			}
+			previousPixelValue = pixel.getValue();
+			if (previousPixelValue == null){
+				if (col == 0){
+					break;
+				} else{
+					pixel2 = this.grid.getPixel(new Coord(col-1,startCoord.y));
+					previousPixelValue2 = pixel2.getValue();
+					if (previousPixelValue2 == null || this.isDrawChar(pixel2)) break;
+				}
+			}
+			else{
+				chars_found++;
+			}
+			startingColumn = col;
+		}
+		if (chars_found==0) return null;
+		return new Coord(startingColumn, startCoord.y);
 	}
 
 	/*
@@ -1140,11 +1172,7 @@ PointerDecorator.prototype = {
 		// check if there is the pointer is inside the canvas
 		if (this.getSelectedCell() == null){ return; }
 		// move selected cell with the arrows & backspace key
-		if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
-			if (this.canvas.getPixel(this.getSelectedCell().add(leftCoord)) != undefined){
-				this.setSelectedCell(this.getSelectedCell().add(leftCoord));
-			}
-  	} else if (eventObject.keyCode == KeyEvent.DOM_VK_LEFT){
+		if (eventObject.keyCode == KeyEvent.DOM_VK_LEFT){
   		this.setSelectedCell(this.getSelectedCell().add(leftCoord));
   	}	else if (eventObject.keyCode == KeyEvent.DOM_VK_RIGHT){
   		this.setSelectedCell(this.getSelectedCell().add(rightCoord));
@@ -1186,11 +1214,8 @@ WritableCanvas.prototype = {
 		}*/
 		// delete previous character
 		else if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
-			// fix this: this is coupled to whether the pointer decorator is called first or after
-			/*if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
-				this.canvas.import(" ",this.canvas.getSelectedCell().add(leftCoord));
-			}*/
-			if (this.canvas.getPixel(this.canvas.getSelectedCell()) != undefined){
+			if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
+				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(leftCoord));
 				this.importChar(" ");
 			}
   	}
@@ -1203,6 +1228,13 @@ WritableCanvas.prototype = {
 			currentText = currentText.substring(1)+" ";
 			this.importChar(currentText);
   	}
+		// jump to next line
+		else if (eventObject.keyCode == KeyEvent.DOM_VK_RETURN){
+			var startOfText = this.canvas.getTextColStart(this.canvas.getSelectedCell());
+			if (startOfText && startOfText.add(bottomCoord)){
+				this.canvas.setSelectedCell(startOfText.add(bottomCoord));
+			}
+		}
 	}
 	, keyPress : function(eventObject){
 		// propagate event
@@ -1888,6 +1920,29 @@ class BoxDrawerTool extends CanvasTool {
 	}
 }
 
+class LineTool extends CanvasTool {
+	constructor(toolId, canvas){
+		super(toolId);
+		this.canvas = canvas;
+		this.startCoord = null;
+		this.mouseStatus = null;
+	}
+	cellDown(coord) {
+		this.mouseStatus = "down";
+		this.startCoord = coord;
+	}
+	cellMove(coord) {
+		if (this.mouseStatus == "down"){
+			this.canvas.rollback();
+			this.canvas.drawLine(this.startCoord, coord, "best", "-");
+		}
+	}
+	cellUp(){
+		this.mouseStatus = "up";
+		this.canvas.rollback();
+	}
+}
+
 /**
  * This tool allows exporting the grid text so user can copy/paste from there
  */
@@ -2134,6 +2189,8 @@ function init(){
 	controller.addTool(new ExportASCIITool("export-button", canvas, "#canvas-container", "#dialog-widget"));
 	// add draw box capabilities
 	controller.addTool(new BoxDrawerTool("box-button", canvas));
+	// add line drawing capabilities
+	controller.addTool(new LineTool("line-button", canvas));
 	// add selection capabilities
 	controller.addTool(new SelectTool("select-button", canvas));
 	// set default tool
