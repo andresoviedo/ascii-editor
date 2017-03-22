@@ -645,7 +645,7 @@ DrawableCanvas.prototype = {
 		}
 	}
 	, drawLineImpl3 : function(startCoord, endCoord, drawMode, pixelValue, ommitIntersections) {
-		console.log("au");
+		this.drawLineImpl2(startCoord, endCoord, "horizontal-horizontal", pixelValue, ommitIntersections);
 	}
 	, getTextStart : function(startCoord) {
 		// guess where the text starts (leftmost col and upmost row)
@@ -1324,6 +1324,7 @@ class CanvasTool {
 	keyDown(eventObject){	}
 	keyPress(eventObject){ }
 	keyUp(eventObject){ }
+	cursor(){}
 }
 
 // ---------------------------------------------- MOVE FEATURE ----------------------------------------------------- //
@@ -1347,6 +1348,9 @@ class SelectTool extends CanvasTool {
 		// shape selection
 		this.endPointsInfo = null;
 		this.selectedBox = null;
+	}
+	cursor(){
+		return "pointer";
 	}
 	hasChanged(){
 		return this.canvas.hasChanged() || this.changed;
@@ -1799,7 +1803,25 @@ class BoxDrawerTool extends CanvasTool {
 		this.endPointsInfo = this.canvas.detectEndPoints(coord);
 	}
 	cellMove(coord) {
-		if (this.startCoord == null) return;
+		// reset previous resizing data
+		this.canvas.rollback();
+
+		if (this.startCoord == null) {
+			if (this.mouseStatus == null && this.mode == null){
+				if (this.canvas.isDrawChar(this.canvas.getPixel(this.canvas.getPointerCell()))){
+					this.endPointsInfo = this.canvas.detectEndPoints(coord);
+					if (this.endPointsInfo != null){
+						if (this.endPointsInfo.length == 2 && this.endPointsInfo[0].context.length == 1 && this.endPointsInfo[1].context.length == 1
+							&& this.endPointsInfo[0].position.hasSameAxis(this.endPointsInfo[1].position)){
+							var ep1 = this.endPointsInfo[0], ep2 = this.endPointsInfo[1];
+							console.log("Highlighting line from '"+ep1.position+"' to '"+ep2.position+"'...");
+							this.canvas.drawLine(ep1.position, ep2.position, ep1.isHorizontal, "+", true);
+						}
+					}
+				}
+			}
+			return;
+		};
 
 		this.endCoord = coord;
 
@@ -1828,8 +1850,7 @@ class BoxDrawerTool extends CanvasTool {
 		if (this.mode == "resizing" && this.endPointsInfo != null){
 			// debug
 			// console.log("Resizing..."+ this.endPointsInfo.length);
-			// reset previous resizing data
-			this.canvas.rollback();
+
 			// what we are doing?
 			var action = null;
 			// detect whether we are moving a line or doing something else
@@ -1904,7 +1925,7 @@ class BoxDrawerTool extends CanvasTool {
 		this.canvas.getGrid().commit();
 
 		// update status
-		this.mouseStatus = "up";
+		this.mouseStatus = null;
 		this.mode = null;
 
 		// update canvas
@@ -1938,8 +1959,12 @@ class LineTool extends CanvasTool {
 		}
 	}
 	cellUp(){
+		// perform changes
+		this.canvas.getGrid().commit();
+		// update status
 		this.mouseStatus = "up";
-		this.canvas.rollback();
+		// update canvas
+		this.canvas.setChanged(true);
 	}
 }
 
@@ -2045,6 +2070,7 @@ CanvasController.prototype = {
 			this.canvas.mouseEnter();
 			try{
 				this.getActiveTool().mouseEnter();
+				this.canvas.getCanvasHTML().style.cursor = this.getActiveTool().cursor();
 			} catch(e){
 				console.error(e.stack);
 			}
