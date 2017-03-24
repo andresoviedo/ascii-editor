@@ -1,3 +1,9 @@
+ASCII Editor
+============
+
+![travis badge](https://travis-ci.org/andresoviedo/ascii-editor.svg?branch=master)
+
+
            _    ____   ____ ___ ___   _____    _ _ _             
           / \  / ___| / ___|_ _|_ _| | ____|__| (_) |_ ___  _ __
          / _ \ \___ \| |    | | | |  |  _| / _` | | __/ _ \| '__|
@@ -5,8 +11,6 @@
        /_/   \_\____/ \____|___|___| |_____\__,_|_|\__\___/|_|   
 
 
-ASCII Editor
-============
 
 The basic idea of this project is to have an editor to design schemas, tables, drawings, etc. for making technical documentation that can be
 used into the ubiquitous README files with import and export functionality.
