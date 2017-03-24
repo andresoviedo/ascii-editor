@@ -27,17 +27,24 @@ Example
 This is an example of what you can draw with the app
 
 
-      +-----------------------+                 ┌───────────────────────┐
-      |                       |                 │                       │  
-      |      BOX STYLE 1      |    connector    │     BOX STYLE 2       │  
-      |                       +-----------------+                       │  
-      |                       |                 │                       │  
-      +-----------------------+                 └───────────────────────┘  
+
+    +------------------------+                                              
+    |                        |                                              
+    |                        |      connector                               
+    |    BOX STYLE 1         |──────────┐         ┌──────────────────────┐  
+    |                        |          │         │                      │  
+    |                        |          │         │                      │  
+    +------------------------+          └─────────┤    BOX STYLE 2       │  
+                                                  │                      │
+                                                  │                      │
+                                                  └──────────────────────┘
 
 
-News (13/07/2017)
+News (24/03/2017)
 =================
 
+- Refactored project to modules
+- Project moved to gradle
 - Fixed backspace behaviour
 - Implemented Carriage Line Return handling
 - Working on connectors...
@@ -73,10 +80,11 @@ Features implemented
   - Select Box / Move it
   - Clear canvas
   - Export to ASCII (so you can copy / paste)
+  - Draw lines
 
 
-Still to be implement (in order of priority)
-============================================
+Still to be implement
+=====================
 
 - improve connectors (reposition connector when its crossing the box)
 - draw lines
@@ -112,10 +120,12 @@ Alternatives
 * ascii-tables: https://ozh.github.io/ascii-tables/
 
 
-Testing
-=======
+Build
+=====
 
-* Tested in Chrome Linux 50.0.2661.75 beta (64-bit)
+
+    gradle combineJs
+
 
 
 Final Notes
@@ -133,6 +143,9 @@ http://www.andresoviedo.org
 ChangeLog
 =========
 
+* 2017/03/24
+  * (n) Refactored to file per Class
+  * (n) Project moved to gradle
 * 2017/03/19
   * (f) Fixed backspace for removing chars
   * (n) Added support for handling carriage line return key when entering text

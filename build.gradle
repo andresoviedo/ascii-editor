@@ -1,0 +1,26 @@
+apply plugin: 'js'
+
+defaultTasks 'combineJs'
+
+buildscript {
+   repositories {
+      mavenCentral()
+   }
+
+   dependencies {
+      classpath 'com.eriwen:gradle-js-plugin:1.12.0'
+   }
+}
+
+combineJs {
+    def main = ["src/main/js/ascii-editor.js"]
+    def controller = ["src/main/js/controller/controller.js", "src/main/js/controller/tools.js"]
+    def entities = ["src/main/js/entities/box.js", "src/main/js/entities/pixel-context.js"]
+    def model = ["src/main/js/model/constants.js", "src/main/js/model/coord-pixel.js", "src/main/js/model/coord.js", "src/main/js/model/grid.js", "src/main/js/model/pixel.js"]
+    def util = ["src/main/js/util/unicode-chars.js", "src/main/js/util/util.js"]
+    def view = ["src/main/js/view/canvas-zoom.js", "src/main/js/view/canvas.js", "src/main/js/view/decorators.js", "src/main/js/view/drawable-canvas.js"]
+    source = main + controller + entities + model + util + view
+    // show the resolved files when gradle is run with -d
+    source.each{ logger.debug ("$it") }
+    dest = file("${buildDir}/ascii-editor.js")
+}
