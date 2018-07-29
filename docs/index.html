@@ -1,0 +1,125 @@
+<html>
+<head>
+<title>ASCII Editor</title>
+<meta name="keywords" content="Javascript Canvas ASCII Editor Schemas Flow README Software Documentation">
+<meta name="descripton" content="ASCII Editor to draw schemas and tables to use in README files">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+<script src="https://code.jquery.com/jquery-1.12.3.min.js"></script>
+<script src="https://code.jquery.com/ui/1.11.4/jquery-ui.min.js"></script>
+<script src="util.js"></script>
+<script src="unicode-chars.js"></script>
+<script src="ascii-editor.js"></script>
+<style>
+
+body {
+ 	font-family: 'Courier New';
+}
+
+button {
+  cursor: pointer;
+}
+
+h1 {
+  display: inline;
+}
+
+#tools {
+  display: inline;
+}
+
+.tool {
+	font-size: 1em;
+}
+
+button.active {
+	font-weight: bold;
+}
+
+#chars {
+	border:1px;
+	height:50px;
+	width:100px;
+	max-height:50px;
+	overflow-y: scroll;
+	letter-spacing: 2px;
+	line-height: 120%;
+}
+
+#canvas-container {
+  width: auto;
+	max-width: 100%;
+  max-height: 85%;
+	border-style: inset;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+#dialog-widget {
+	display: none;
+	width: 100%;
+	height:100%;
+  max-width: 100%;
+  max-height: 85%;
+  border-style: inset;
+}
+
+#dialog-widget textarea {
+	white-space: pre;
+  	word-wrap: normal;
+  	overflow-x: scroll;
+	width:100%;
+	height:100%;
+	font-family: 'Courier New'; !important
+}
+
+#text-widget {
+	display: none;
+	position: fixed;
+}
+
+.visible {
+  display: block !important;
+}
+
+</style>
+</head>
+<body onload="init()">
+
+<h1>ASCII Editor</h1>
+<div id="tools">
+	<button id="box-button" class="tool" title="Draw boxes">☐</button>
+  <button id="line-button" class="tool" title="Draw lines">─</button>
+	<button id="text-button" class="tool" title="Write/Edit text">A</button>
+	<!-- <button id="pencil-button" class="tool" title="Free draw">x</button> -->
+	<!-- <button id="import-button" class="tool" title="Import ASCII code">░</button> -->
+	<button id="clear-button" class="tool" title="Clear canvas">⎚</button>
+	<select id="style-select" class="tool" title="Select style">
+		<option value="0">Classic (+-)</option>
+		<option value="1">Term 1  (┌─)</option>
+		<!-- <option value="2">Term 2  (┏━)</option> -->
+		<!-- <option value="4">Term 4  (╔═)</option> -->
+	</select>
+	<button id="select-button" class="tool" title="Select">↖</button>
+	<button id="export-button" class="tool" title="Export">⎘</button>
+	<a href="https://github.com/andresoviedo/ascii-editor">https://github.com/andresoviedo/ascii-editor</a>
+</div>
+<!-- div id="chars" class="tool">─━│┃┄┅┆┇┈┉┊┋┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┝┞┟┠┡┢┣┤┥┦┧┨┩┪┫┬┭┮┯┰┱┲┳┴┵┶┷┸┹┺┻┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋╌╍╎╏═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬╭╮╯╰╱╲╳╴╵╶╷╸╹╺╻╼╽╾╿</div -->
+<div id="text-widget">
+  <textarea id="text-input"></textarea>
+  <button id="text-input-close">Close</button>
+  <button id="text-input-OK">OK</button>
+</div>
+
+<div id="canvas-container">
+	<canvas id="ascii-canvas"></canvas>
+</div>
+
+<div id="dialog-widget" title="Dialog">
+  <textarea id="dialog-textarea" rows="100" cols="200"></textarea>
+</div>
+
+<!-- button id="dialog-widget-close">Close</button -->
+
+</body>
+</html>
