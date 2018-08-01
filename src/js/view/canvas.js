@@ -12,7 +12,6 @@ function ASCIICanvas(htmlCanvas, grid) {
 	this.zoom = defaultZoom;
 	this.changed = true;
 	this.linesMode = false;
-	this.init();
 }
 
 ASCIICanvas.prototype = {

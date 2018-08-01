@@ -29,10 +29,12 @@ function init(){
 	var grid = new Grid();
 	// initialize canvas
 	var canvas = delegateProxy(new ASCIICanvas(document.getElementById("ascii-canvas"),grid),"grid");
+	canvas.init();
 	// add canvas movability
 	canvas = delegateProxy(new MovableCanvas(canvas, "#canvas-container"), "canvas");
 	// add canvas zoom feature
 	canvas = delegateProxy(new ZoomableCanvas(canvas), "canvas");
+	canvas.init();
 	// add ascii drawing capabilities
 	canvas = delegateProxy(new DrawableCanvas(canvas), "canvas");
 	// add ascii drawing capabilities with style

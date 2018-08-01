@@ -1,26 +1,16 @@
-apply plugin: 'js'
-
 defaultTasks 'combineJs'
 
-buildscript {
-   repositories {
-      mavenCentral()
-   }
-
-   dependencies {
-      classpath 'com.eriwen:gradle-js-plugin:1.12.0'
-   }
-}
-
-combineJs {
-    def main = ["src/main/js/ascii-editor.js"]
-    def controller = ["src/main/js/controller/controller.js", "src/main/js/controller/tools.js"]
-    def entities = ["src/main/js/entities/box.js", "src/main/js/entities/pixel-context.js"]
-    def model = ["src/main/js/model/constants.js", "src/main/js/model/coord-pixel.js", "src/main/js/model/coord.js", "src/main/js/model/grid.js", "src/main/js/model/pixel.js"]
-    def util = ["src/main/js/util/unicode-chars.js", "src/main/js/util/util.js"]
-    def view = ["src/main/js/view/canvas-zoom.js", "src/main/js/view/canvas.js", "src/main/js/view/decorators.js", "src/main/js/view/drawable-canvas.js"]
-    source = main + controller + entities + model + util + view
+task combineJs() {
+    def main = ["src/js/ascii-editor.js"]
+    def controller = ["src/js/controller/controller.js", "src/js/controller/tools.js"]
+    def entities = ["src/js/entities/box.js", "src/js/entities/pixel-context.js"]
+    def model = ["src/js/model/constants.js", "src/js/model/coord-pixel.js", "src/js/model/coord.js", "src/js/model/grid.js", "src/js/model/pixel.js"]
+    def util = ["src/js/util/unicode-chars.js", "src/js/util/util.js"]
+    def view = ["src/js/view/canvas-zoom.js", "src/js/view/canvas.js", "src/js/view/decorators.js", "src/js/view/drawable-canvas.js"]
+    def source = main + controller + entities + model + util + view
     // show the resolved files when gradle is run with -d
-    source.each{ logger.debug ("$it") }
-    dest = file("${buildDir}/ascii-editor.js")
+    // source.each{ logger.debug ("$it") }
+    def output = file("docs/ascii-editor.js")
+    output.write('') // truncate output if needed
+    source.each { f -> output.append(file(f).getText('UTF-8'),"UTF-8") }
 }

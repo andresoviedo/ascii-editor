@@ -1,3 +1,9 @@
+class CanvasDecorator {
+	public(canvas){
+		this.canvas = canvas;
+	}
+}
+
 // ----------------------------------------------- STYLE DECORATOR ------------------------------------------------- //
 
 function StylableCanvas(canvas){

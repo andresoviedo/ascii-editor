@@ -1,17 +1,16 @@
 // -------------------------------------------- ZOOMABLE CANVAS ---------------------------------------------------- //
 
 function ZoomableCanvas(canvas){
+	this.class = "ZoomableCanvas";
 	this.canvas = canvas;
 	this.shiftKeyEnabled = false;
-	this.init();
 }
 
 ZoomableCanvas.prototype = {
 	init : function(){
-		// bind mousewheel for zooming into the canvas
 		$(this.canvas.getCanvasHTML()).bind("mousewheel", this.onMouseWheel.bind(this));
-	}
-	, keyDown : function(eventObject){
+	},
+	keyDown : function(eventObject){
 		this.canvas.keyDown(eventObject);
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 			this.shiftKeyEnabled = true;

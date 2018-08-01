@@ -258,7 +258,29 @@ function paint(ctx,font,cellWidth){
 	ctx.fillText('+--+--+ █ ██', 0,cellHeight*7-cellDescend);
 }
 
+class Canvas {
+
+    constructor(canvas){
+        this.canvas = canvas;
+    }
+}
+
 function delegateProxy(target,delegateName){
+    var pp  = Object.getPrototypeOf(target);
+    var x = Object.getOwnPropertyDescriptors(target);
+    for (f in pp){
+        if ((typeof target[f]) == 'function'){
+            // 
+            x[f] = {value: target[f], writable: true, enumerable: true, configurable: true};
+            target[f].bind(target);
+        }
+    }
+    var proxy = Object.create(target[delegateName],x);
+    
+    return proxy;
+}
+
+function delegateByProxy(target,delegateName){
 	// proxy handler
 	var proxyHandler = {
 		get(target, propKey, receiver) {

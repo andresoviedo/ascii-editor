@@ -44,23 +44,27 @@ This is an example of what you can draw with the app
                                                   └──────────────────────┘
 
 
-News (24/03/2017)
+News (01/08/2018)
 =================
 
-- Refactored project to modules
-- Project moved to gradle
-- Fixed backspace behaviour
-- Implemented Carriage Line Return handling
+- Refactored project structure
+- Removed gradle combineJs plugin
+
+
+Next release
+============
+
 - Working on connectors...
+- Working on moving source code to TypeScript
 
 
 Design
 ======
 
 - HTML canvas technology
-- JavaScript ECMAScript6 technology (Classes & Proxies)
+- JavaScript ECMAScript6 technology (Classes + Inheritance)
 - Object oriented design. Classes, Inheritance,
-- Patters design: Layers Pattern, Decorator Pattern, Proxy Pattern
+- Patters design: Layers Pattern, Decorator Pattern
 - JQuery framework (just for manipulating DOM)
 
 
@@ -127,9 +131,7 @@ Alternatives
 Build
 =====
 
-
     gradle combineJs
-
 
 
 Final Notes
@@ -147,6 +149,9 @@ http://www.andresoviedo.org
 ChangeLog
 =========
 
+* 2018/08/01
+  * (f) Removed gradle combineJs plugin
+  * (f) Project structure refactored
 * 2017/03/24
   * (n) Refactored to file per Class
   * (n) Project moved to gradle
