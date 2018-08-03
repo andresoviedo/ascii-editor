@@ -128,10 +128,21 @@ Alternatives
 * ascii-tables: https://ozh.github.io/ascii-tables/
 
 
-Build
-=====
+Development
+===========
 
-    gradle combineJs
+In order to develop:
+* git clone https://github.com/andresoviedo/ascii-editor.git
+* git checkout wip/typescript
+* Install nodejs
+* Install Visual Studio Code
+* In Visual Studio: File > Add folder to workspace
+* In Visual Studio: Tasks > Run Task > npm install
+
+Once installation is finished, to run the Live Development Server, in Visual Studio Code run:
+* npm start
+
+An Internet Browser window will open with the localhost url and you will see the app.
 
 
 Final Notes
