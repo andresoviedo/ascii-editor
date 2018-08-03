@@ -1,7 +1,7 @@
 ASCII Editor
 ============
 
-![travis badge](https://travis-ci.org/andresoviedo/ascii-editor.svg?branch=master)
+![travis badge](https://api.travis-ci.org/andresoviedo/ascii-editor.svg?branch=wip/typescript)
 
 
            _    ____   ____ ___ ___   _____    _ _ _             
