@@ -1,7 +1,7 @@
 defaultTasks 'combineJs'
 
 task combineJs() {
-    def main = ["src/js/ascii-editor.js"]
+    def main = ["src/js/app.js"]
     def controller = ["src/js/controller/controller.js", "src/js/controller/tools.js"]
     def entities = ["src/js/entities/box.js", "src/js/entities/pixel-context.js"]
     def model = ["src/js/model/constants.js", "src/js/model/coord-pixel.js", "src/js/model/coord.js", "src/js/model/grid.js", "src/js/model/pixel.js"]
@@ -10,7 +10,7 @@ task combineJs() {
     def source = main + controller + entities + model + util + view
     // show the resolved files when gradle is run with -d
     // source.each{ logger.debug ("$it") }
-    def output = file("docs/ascii-editor.js")
+    def output = file("docs/app.js")
     output.write('') // truncate output if needed
     source.each { f -> output.append(file(f).getText('UTF-8'),"UTF-8") }
 }

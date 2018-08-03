@@ -10,7 +10,7 @@
   }
 
   // trigger module loading: : load order not guaranteed!
-  loadModule("js/ascii-editor.js");
+  loadModule("js/app.js");
   loadModule("js/util/util.js");
   loadModule("js/util/unicode-chars.js");
 

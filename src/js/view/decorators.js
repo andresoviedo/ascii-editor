@@ -1,6 +1,142 @@
 class CanvasDecorator {
-	public(canvas){
+	constructor(canvas){
 		this.canvas = canvas;
+	}
+
+	getCanvasHTML(){
+		return this.canvas.getCanvasHTML();
+	}
+
+	getGrid(){
+		return this.canvas.getGrid();
+	}
+
+	getWidth(){
+		return this.canvas.getWidth();
+	}
+
+	hasChanged(){
+		return this.canvas.hasChanged();
+	}
+
+	setChanged(changed){
+		this.canvas.setChanged(changed);
+	}
+
+	redraw(){
+		this.canvas.redraw();
+	}
+
+	get pixelsStack() {
+		return this.canvas.pixelsStack;
+	}
+
+	getPixel(coord){
+		return this.canvas.getPixel(coord);
+	}
+
+	stackPixel(coord, value) {
+		this.canvas.stackPixel(coord,value);
+	}
+
+	drawText(text,coord,style){
+		this.canvas.drawText(text,coord,style);
+	}
+
+	drawRect(coord,width,height,style){
+		this.canvas.drawRect(coord,width,height,style);
+	}
+
+	get cursor(){
+		return this.canvas.cursor;
+	}
+
+	getZoom () { 
+		return this.canvas.getZoom();
+	}
+
+	setZoom(newZoom) {
+		this.canvas.setZoom(newZoom);
+	}
+
+	resize(){
+		this.canvas.resize();
+	}
+
+	mouseEnter(){
+		this.canvas.mouseEnter();
+	}
+
+	mouseUp(){
+		this.canvas.mouseUp();
+	}
+
+	mouseLeave(){
+		this.canvas.mouseLeave();
+	}
+
+	mouseMove(eventObject){
+		this.canvas.mouseMove(eventObject);
+	}
+
+	mouseDown(eventObject){
+		this.canvas.mouseDown(eventObject);
+	}
+
+	cellDown(coord){
+		this.canvas.cellDown(coord);
+	}
+
+	cellUp(coord){
+		this.canvas.cellUp(coord);
+	}
+
+	keyDown(eventObject){
+		this.canvas.keyDown(eventObject);
+	}
+
+	keyUp(eventObject){
+		this.canvas.keyUp(eventObject);
+	}
+
+	keyPress(eventObject){
+		this.canvas.keyPress(eventObject);
+	}
+
+	isFocused(){
+		return this.canvas.isFocused();
+	}
+
+	getGridCoord(canvasHTMLCoord){
+		return this.canvas.getGridCoord(canvasHTMLCoord);
+	}
+
+	cellMove(coord){
+		this.canvas.cellMove(coord);
+	}
+
+	getCellWidth(){
+		return this.canvas.getCellWidth();
+	}
+
+	getCellHeight(){
+		return this.canvas.getCellHeight();
+	}
+
+	import(text, coord, ommitBlanks, ommitUnrecognized) {
+		this.canvas.import(text,coord,ommitBlanks,ommitUnrecognized);
+	}
+
+	moveArea(area, diff) {
+		this.canvas.moveArea(area,diff);
+	}
+
+	commit(){
+		this.canvas.commit();
+	}
+
+	rollback(){
+		return this.canvas.rollback();
 	}
 }
 
@@ -369,7 +505,7 @@ WritableCanvas.prototype = {
 			}catch(e){
 				console.log(e.message);
 			}
-  	}
+		}
 	}
 	, importChar : function(char){
 		this.canvas.import(char,this.canvas.getSelectedCell());
@@ -380,41 +516,43 @@ WritableCanvas.prototype = {
 
 // -------------------------------------------- MOVABLE CANVAS DECORATOR ------------------------------------------- //
 
-function MovableCanvas(canvas, htmlContainerSelectorId){
-	this.class = "MovableCanvas";
-	this.canvas = canvas;
-	this.htmlContainerSelectorId = htmlContainerSelectorId;
-	this.lastMouseEvent = null;
-	this.shiftKeyEnabled = false;
-}
+class MovableCanvas extends CanvasDecorator {
+	constructor(canvas, htmlContainerSelectorId){
+		super(canvas);
+		this.class = "MovableCanvas";
+		this.htmlContainerSelectorId = htmlContainerSelectorId;
+		this.lastMouseEvent = null;
+		this.shiftKeyEnabled = false;
+	}
 
-MovableCanvas.prototype = {
-		keyDown : function(eventObject){
-		this.canvas.keyDown(eventObject);
+	keyDown(eventObject){
+		super.keyDown(eventObject);
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 			this.shiftKeyEnabled = true;
 		}
 	}
-	, keyUp: function(eventObject){
-		this.canvas.keyUp(eventObject);
+	keyUp(eventObject){
+		super.keyUp(eventObject);
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 			this.shiftKeyEnabled = false;
 		}
 	}
-	, mouseDown : function(eventObject) {
-		this.canvas.mouseDown(eventObject);
+	mouseDown(eventObject) {
+		super.mouseDown(eventObject);
 		this.lastMouseEvent = eventObject;
 	}
-	, mouseMove : function(eventObject){
-		this.canvas.mouseMove(eventObject);
-		if (!this.canvas.isFocused() || !this.shiftKeyEnabled) return;
+	mouseMove(eventObject){
+		super.mouseMove(eventObject);
+		if (!super.isFocused() || !this.shiftKeyEnabled) return;
 		if (this.lastMouseEvent == null) return;
 		$(this.htmlContainerSelectorId).scrollTop(Math.max(0,$(this.htmlContainerSelectorId).scrollTop() - (eventObject.clientY-this.lastMouseEvent.clientY)));
 		$(this.htmlContainerSelectorId).scrollLeft(Math.max(0,$(this.htmlContainerSelectorId).scrollLeft()  - (eventObject.clientX-this.lastMouseEvent.clientX)));
 		this.lastMouseEvent = eventObject;
 	}
-	, mouseUp : function(){
-		this.canvas.mouseUp();
+	mouseUp(){
+		super.mouseUp();
 		this.lastMouseEvent = null;
 	}
+
+	
 }

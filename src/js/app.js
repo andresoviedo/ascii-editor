@@ -31,7 +31,7 @@ function init(){
 	var canvas = delegateProxy(new ASCIICanvas(document.getElementById("ascii-canvas"),grid),"grid");
 	canvas.init();
 	// add canvas movability
-	canvas = delegateProxy(new MovableCanvas(canvas, "#canvas-container"), "canvas");
+	canvas = new MovableCanvas(canvas, "#canvas-container");
 	// add canvas zoom feature
 	canvas = delegateProxy(new ZoomableCanvas(canvas), "canvas");
 	canvas.init();
