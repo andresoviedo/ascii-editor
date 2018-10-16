@@ -1,28 +1,32 @@
 //------------------------------------------------- MOUSE CONTROLLER ------------------------------------------------//
 
-function CanvasController(canvas) {
-	this.class = 'CanvasController';
-	this.canvas = canvas;
-	this.tools = {};
-	this.shiftKeyEnabled = false;
-	this.dummyTool = new CanvasTool();
-	this.canvasHTML = canvas.getCanvasHTML();
-	this.init();
-	this.lastPointerCoord = null;
-	// visual only: adapt canvas container
-	$("#canvas-container").width(this.canvas.getWidth());
-	// select first cell, so user can start writing right from start
-	this.canvas.setSelectedCell(new Coord(0,0));
-}
+class CanvasController{
+	class = 'CanvasController';
+	canvas: CanvasDecorator & PointerDecorator;
+	canvasHTML: HTMLCanvasElement;
+	tools: Record<string,CanvasTool> = {};
+	shiftKeyEnabled = false;
+	dummyTool = new CanvasTool("");
+	lastPointerCoord: Coord | null = null;
 
-CanvasController.prototype = {
-	init : function() {
-		$("#tools > button.tool").click(function(eventObject) {
+	constructor (canvas: CanvasDecorator & PointerDecorator) {
+		this.canvas = canvas;
+		this.canvasHTML = canvas.getCanvasHTML();
+
+		this.init();
+		this.lastPointerCoord = null;
+		// visual only: adapt canvas container
+		$("#canvas-container").width(this.canvas.getWidth());
+		// select first cell, so user can start writing right from start
+		this.canvas.setSelectedCell(new Coord(0,0));
+	}
+	init() {
+		$("#tools > button.tool").click((eventObject) => {
 			// active tool
 			this.setActiveTool(eventObject.target.id);
-		}.bind(this));
+		});
 		// bind mouse action for handling the drawing
-		$(this.canvas.getCanvasHTML()).mousedown(function(eventObject) {
+		$(this.canvas.getCanvasHTML()).mousedown((eventObject: JQuery.Event) => {
 			// propagate event
 			this.canvas.mouseDown(eventObject);
 			this.lastPointerCoord = this.getGridCoord(eventObject);
@@ -34,8 +38,8 @@ CanvasController.prototype = {
 			} catch(e){
 				console.error(e.stack);
 			}
-		}.bind(this));
-		$(this.canvas.getCanvasHTML()).mouseup(function() {
+		});
+		$(this.canvas.getCanvasHTML()).mouseup(() =>{
 			// propagate event
 			this.canvas.mouseUp();
 			this.canvas.cellUp(this.lastPointerCoord);
@@ -45,8 +49,8 @@ CanvasController.prototype = {
 			} catch(e){
 				console.error(e.stack);
 			}
-		}.bind(this));
-		$(this.canvas.getCanvasHTML()).mouseenter(function() {
+		});
+		$(this.canvas.getCanvasHTML()).mouseenter(() => {
 			this.canvas.getCanvasHTML().style.cursor = this.canvas.cursor();
 			this.canvas.mouseEnter();
 			try{
@@ -55,8 +59,8 @@ CanvasController.prototype = {
 			} catch(e){
 				console.error(e.stack);
 			}
-		}.bind(this));
-		$(this.canvas.getCanvasHTML()).mousemove(function(eventObject) {
+		});
+		$(this.canvas.getCanvasHTML()).mousemove((eventObject)=> {
 			// propagate event
 			this.canvas.mouseMove(eventObject);
 			this.lastPointerCoord = this.getGridCoord(eventObject);
@@ -67,16 +71,16 @@ CanvasController.prototype = {
 			} catch(e){
 				console.error(e.stack);
 			}
-		}.bind(this));
-		$(this.canvas.getCanvasHTML()).mouseleave(function() {
+		});
+		$(this.canvas.getCanvasHTML()).mouseleave(()=>{
 			this.canvas.mouseLeave();
 			try{
 				this.getActiveTool().mouseLeave();
 			} catch(e){
 				console.error(e.stack);
 			}
-		}.bind(this));
-		$(window).keydown(function(eventObject) {
+		});
+		$(window).keydown((eventObject)=>{
 			if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 				this.shiftKeyEnabled = true;
 			}
@@ -86,16 +90,16 @@ CanvasController.prototype = {
 			} catch(e){
 				console.error(e.stack);
 			}
-		}.bind(this));
-		$(document).keypress(function(eventObject) {
+		});
+		$(document).keypress((eventObject)=>{
 			this.canvas.keyPress(eventObject);
 			try{
 				this.getActiveTool().keyPress(eventObject);
 			} catch(e){
 				console.error(e.stack);
 			}
-		}.bind(this));
-		$(window).keyup(function(eventObject) {
+		});
+		$(window).keyup((eventObject)=>{
 			if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 				this.shiftKeyEnabled = false;
 			}
@@ -105,12 +109,12 @@ CanvasController.prototype = {
 			} catch(e){
 				console.error(e.stack);
 			}
-		}.bind(this));
+		});
 	}
-	,addTool : function(tool){
+	addTool(tool: CanvasTool){
 		this.tools[tool.getId()] = tool;
 	}
-	,getActiveTool : function(){
+	getActiveTool(): CanvasTool | null{
 		if (this.shiftKeyEnabled) return this.dummyTool;
 		for (var tool in this.tools){
 			if (this.tools[tool].isEnabled()){
@@ -119,7 +123,7 @@ CanvasController.prototype = {
 		}
 		return null;
 	}
-	,setActiveTool : function(elementId){
+	setActiveTool(elementId: string){
 		try {
 			// toggle active button (visual feature only)
 			$("#tools > button.tool").removeClass("active");
@@ -133,13 +137,13 @@ CanvasController.prototype = {
 			console.error(e.stack);
 		}
 	}
-	, getGridCoord: function(mouseEvent){
+	getGridCoord(mouseEvent: JQuery.Event){
 		// get HTML canvas relative coordinates
-		canvasHTMLCoord = this.getCanvasHTMLCoord(mouseEvent);
+		let canvasHTMLCoord = this.getCanvasHTMLCoord(mouseEvent);
 		// get canvas coord
 		return this.canvas.getGridCoord(canvasHTMLCoord);
 	}
-	, getCanvasHTMLCoord : function(mouseEvent){
+	getCanvasHTMLCoord (mouseEvent: JQuery.Event){
 		var x;
 		var y;
 		if (mouseEvent.pageX || mouseEvent.pageY) {

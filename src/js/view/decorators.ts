@@ -1,5 +1,8 @@
+import construct = Reflect.construct;
+
 class CanvasDecorator {
-	constructor(canvas){
+	canvas: ASCIICanvas & Grid;
+	constructor(canvas:ASCIICanvas & Grid){
 		this.canvas = canvas;
 	}
 
@@ -19,7 +22,7 @@ class CanvasDecorator {
 		return this.canvas.hasChanged();
 	}
 
-	setChanged(changed){
+	setChanged(changed: boolean){
 		this.canvas.setChanged(changed);
 	}
 
@@ -31,19 +34,19 @@ class CanvasDecorator {
 		return this.canvas.pixelsStack;
 	}
 
-	getPixel(coord){
+	getPixel(coord:Coord){
 		return this.canvas.getPixel(coord);
 	}
 
-	stackPixel(coord, value) {
+	stackPixel(coord:Coord, value:string) {
 		this.canvas.stackPixel(coord,value);
 	}
 
-	drawText(text,coord,style){
+	drawText(text:string,coord: Coord,style: string){
 		this.canvas.drawText(text,coord,style);
 	}
 
-	drawRect(coord,width,height,style){
+	drawRect(coord:Coord,width: number,height: number,style: string){
 		this.canvas.drawRect(coord,width,height,style);
 	}
 
@@ -51,11 +54,11 @@ class CanvasDecorator {
 		return this.canvas.cursor;
 	}
 
-	getZoom () { 
+	getZoom () {
 		return this.canvas.getZoom();
 	}
 
-	setZoom(newZoom) {
+	setZoom(newZoom: number) {
 		this.canvas.setZoom(newZoom);
 	}
 
@@ -75,31 +78,31 @@ class CanvasDecorator {
 		this.canvas.mouseLeave();
 	}
 
-	mouseMove(eventObject){
+	mouseMove(eventObject: JQuery.Event){
 		this.canvas.mouseMove(eventObject);
 	}
 
-	mouseDown(eventObject){
+	mouseDown(eventObject: JQuery.Event){
 		this.canvas.mouseDown(eventObject);
 	}
 
-	cellDown(coord){
+	cellDown(coord:Coord){
 		this.canvas.cellDown(coord);
 	}
 
-	cellUp(coord){
+	cellUp(coord:Coord){
 		this.canvas.cellUp(coord);
 	}
 
-	keyDown(eventObject){
+	keyDown(eventObject:JQuery.Event){
 		this.canvas.keyDown(eventObject);
 	}
 
-	keyUp(eventObject){
+	keyUp(eventObject:JQuery.Event){
 		this.canvas.keyUp(eventObject);
 	}
 
-	keyPress(eventObject){
+	keyPress(eventObject:JQuery.Event){
 		this.canvas.keyPress(eventObject);
 	}
 
@@ -107,11 +110,11 @@ class CanvasDecorator {
 		return this.canvas.isFocused();
 	}
 
-	getGridCoord(canvasHTMLCoord){
+	getGridCoord(canvasHTMLCoord:Coord){
 		return this.canvas.getGridCoord(canvasHTMLCoord);
 	}
 
-	cellMove(coord){
+	cellMove(coord:Coord){
 		this.canvas.cellMove(coord);
 	}
 
@@ -123,11 +126,11 @@ class CanvasDecorator {
 		return this.canvas.getCellHeight();
 	}
 
-	import(text, coord, ommitBlanks, ommitUnrecognized) {
+	import(text:string, coord: Coord, ommitBlanks?: boolean, ommitUnrecognized?: boolean) {
 		this.canvas.import(text,coord,ommitBlanks,ommitUnrecognized);
 	}
 
-	moveArea(area, diff) {
+	moveArea(area:Box, diff:Coord) {
 		this.canvas.moveArea(area,diff);
 	}
 
@@ -142,36 +145,37 @@ class CanvasDecorator {
 
 // ----------------------------------------------- STYLE DECORATOR ------------------------------------------------- //
 
-function StylableCanvas(canvas){
-	this.class = "StylableCanvas";
-	this.canvas = canvas;
-}
+class StylableCanvas {
+	class = "StylableCanvas";
+	canvas: DrawableCanvas & CanvasDecorator
+	constructor(canvas: DrawableCanvas & CanvasDecorator){
+		this.canvas = canvas;
+	}
 
-StylableCanvas.prototype = {
-
-	drawLine : function(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections) {
+  drawLine(startCoord: Coord, endCoord: Coord, drawHorizontalFirst: string, pixelValue: string, ommitIntersections: boolean) {
 		this.canvas.drawLine(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections);
 		// get drawing style
-		drawStyle = $("#style-select").val();
+		let drawStyle = $("#style-select").val();
 		// fix line style
-		for (index in this.canvas.pixelsStack){
-			pixelPosition = this.canvas.pixelsStack[index];
-			pixel = pixelPosition.pixel;
+		for (let index in this.canvas.pixelsStack){
+			let pixelPosition = this.canvas.pixelsStack[index];
+			let pixel = pixelPosition.pixel;
 			pixelValue = this.getPixelValueIntegrated(pixelPosition.coord, drawStyle);
 			pixel.tempValue = pixelValue;
 		}
 	}
+
 	/**
 	 * Here is the logic to integrate the pixels. This function return the best drawing character
 	 * so its nicely integrated into the ASCII code
 	 */
-	, getPixelValueIntegrated : function(coord, drawStyle) {
+	getPixelValueIntegrated(coord: Coord, drawStyle:string) {
 		var pixel = this.canvas.getPixel(coord);
 		var pixelValue = pixel.getValue();
 
 		// test whether the pixel is either of the drawing characters
-		var isBoxPixel = boxChars1.indexOf(pixelValue) != -1;
-		var isArrowPixel = arrowChars1.indexOf(pixelValue) != -1;
+		var isBoxPixel = window.boxChars1.indexOf(pixelValue) != -1;
+		var isArrowPixel = window.arrowChars1.indexOf(pixelValue) != -1;
 
 		// if its not a drawing character just return. we have nothing to integrate
 		if (!isBoxPixel && !isArrowPixel) {
@@ -184,13 +188,13 @@ StylableCanvas.prototype = {
 		// handle cases when we are drawing a box
 		if (isBoxPixel){
 			if (pixelContext.left && pixelContext.right && pixelContext.bottom && pixelContext.top) {
-				return drawStyles[drawStyle]["cross"];
+				return window.drawStyles[drawStyle]["cross"];
 			}
 			/* This handles this case:
 		 	 *                            X - X
 		 	 */
 			if (pixelContext.left && pixelContext.right && !pixelContext.bottom && !pixelContext.top) {
-				return drawStyles[drawStyle]["horizontal"];
+				return window.drawStyles[drawStyle]["horizontal"];
 			}
 			/*
 		 	 * This handles this case:	     X
@@ -198,23 +202,23 @@ StylableCanvas.prototype = {
 		 	 *                               X
 		 	*/
 			else if (!pixelContext.left && !pixelContext.right && pixelContext.bottom && pixelContext.top) {
-				return drawStyles[drawStyle]["vertical"];
+				return window.drawStyles[drawStyle]["vertical"];
 			}
 			/*
 		 	 * This handles this case:	     ┌X
 		 	 *                               X
 		 	*/
 			else if (!pixelContext.left && pixelContext.right && !pixelContext.top && pixelContext.bottom) {
-				cornerPixel = drawStyles[drawStyle]["corner-top-left"];
-				return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+				let cornerPixel = window.drawStyles[drawStyle]["corner-top-left"];
+				return cornerPixel? cornerPixel : window.drawStyles[drawStyle]["corner"];
 			}
 			/*
 		 	 * This handles this case:	     X┐
 		 	 *                                X
 		 	*/
 			else if (pixelContext.left && !pixelContext.right && !pixelContext.top && pixelContext.bottom) {
-				cornerPixel = drawStyles[drawStyle]["corner-top-right"];
-				return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+				let cornerPixel = window.drawStyles[drawStyle]["corner-top-right"];
+				return cornerPixel? cornerPixel : window.drawStyles[drawStyle]["corner"];
 			}
 			/*
 		 	 * This handles this case:	     X
@@ -222,8 +226,8 @@ StylableCanvas.prototype = {
 		 	 *
 		 	*/
 			else if (!pixelContext.left && pixelContext.right && pixelContext.top && !pixelContext.bottom) {
-				cornerPixel = drawStyles[drawStyle]["corner-bottom-left"];
-				return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+				let cornerPixel = window.drawStyles[drawStyle]["corner-bottom-left"];
+				return cornerPixel? cornerPixel : window.drawStyles[drawStyle]["corner"];
 			}
 			/*
 		 	 * This handles this case:	      X
@@ -231,27 +235,27 @@ StylableCanvas.prototype = {
 		 	 *
 		 	*/
 			else if (pixelContext.left && !pixelContext.right && pixelContext.top && !pixelContext.bottom) {
-				cornerPixel = drawStyles[drawStyle]["corner-bottom-right"];
-				return cornerPixel? cornerPixel : drawStyles[drawStyle]["corner"];
+				let cornerPixel = window.drawStyles[drawStyle]["corner-bottom-right"];
+				return cornerPixel? cornerPixel : window.drawStyles[drawStyle]["corner"];
 			}
 			else if (pixelContext.left && pixelContext.right && pixelContext.top && !pixelContext.bottom) {
-				pixelValue = drawStyles[drawStyle]["horizontal-light-up"];
-				return pixelValue? pixelValue : drawStyles[drawStyle]["horizontal"];
+				pixelValue = window.drawStyles[drawStyle]["horizontal-light-up"];
+				return pixelValue? pixelValue : window.drawStyles[drawStyle]["horizontal"];
 			}
 			else if (pixelContext.left && pixelContext.right && !pixelContext.top && pixelContext.bottom) {
-				pixelValue = drawStyles[drawStyle]["horizontal-light-down"];
-				return pixelValue? pixelValue : drawStyles[drawStyle]["horizontal"];
+				pixelValue = window.drawStyles[drawStyle]["horizontal-light-down"];
+				return pixelValue? pixelValue : window.drawStyles[drawStyle]["horizontal"];
 			}
 			else if (!pixelContext.left && pixelContext.right && pixelContext.top && pixelContext.bottom) {
-				pixelValue = drawStyles[drawStyle]["vertical-light-right"];
-				return pixelValue? pixelValue : drawStyles[drawStyle]["corner"];
+				pixelValue = window.drawStyles[drawStyle]["vertical-light-right"];
+				return pixelValue? pixelValue : window.drawStyles[drawStyle]["corner"];
 			}
 			else if (pixelContext.left && !pixelContext.right && pixelContext.top && pixelContext.bottom) {
-				pixelValue = drawStyles[drawStyle]["vertical-light-left"];
-				return pixelValue? pixelValue : drawStyles[drawStyle]["corner"];
+				pixelValue = window.drawStyles[drawStyle]["vertical-light-left"];
+				return pixelValue? pixelValue : window.drawStyles[drawStyle]["corner"];
 			}
 			else if (pixelContext.top || pixelContext.bottom) {
-				return drawStyles[drawStyle]["vertical"];
+				return window.drawStyles[drawStyle]["vertical"];
 			}
 
 		}
@@ -326,37 +330,40 @@ StylableCanvas.prototype = {
  * This tool handles the cursor position & movement (arrow keys) and pointer hovering.
  * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
  */
-function PointerDecorator(canvas, toolId){
-	this.class = "PointerDecorator";
-	this.canvas = canvas;
-	this.toolId = toolId;
-	this.selectedCell = null;
-	this.pointerCell = null;
-	this.drawSelectedCell = false;
-	this.changed = false;
-}
+class PointerDecorator {
+	class = "PointerDecorator";
+	canvas: StylableCanvas & DrawableCanvas & CanvasDecorator;
+	toolId: string
+	selectedCell: Coord | null = null;
+	pointerCell: Coord | null = null;
+	drawSelectedCell = false;
+	changed = false;
+	mouseStatus: string | null = null;
 
-PointerDecorator.prototype = {
+	constructor(canvas: StylableCanvas & DrawableCanvas & CanvasDecorator, toolId: string){
+		this.canvas = canvas;
+		this.toolId = toolId;
+	}
 
-	getPointerCell : function() { return this.pointerCell }
-	, setPointerCell : function(coord) { this.pointerCell = coord }
-	, getDrawSelectedCell : function() { return this.drawSelectedCell }
-	, setDrawSelectedCell : function(draw) { this.drawSelectedCell = draw }
-	, getSelectedCell : function() { return this.selectedCell }
-	, setSelectedCell : function(coord){
+	getPointerCell() { return this.pointerCell }
+	setPointerCell(coord:Coord) { this.pointerCell = coord }
+	getDrawSelectedCell() { return this.drawSelectedCell }
+	setDrawSelectedCell(draw:boolean) { this.drawSelectedCell = draw }
+	getSelectedCell() { return this.selectedCell }
+	setSelectedCell(coord:Coord){
 		if (this.canvas.getGrid().getPixel(coord) != undefined){
   		this.selectedCell = coord;
   	}
 	}
-	, hasChanged : function(){
+	hasChanged(){
 		this.refresh();
 		return this.canvas.hasChanged() || this.changed;
 	}
-	, setChanged : function(changed){
+	setChanged(changed: boolean){
 		this.canvas.setChanged(changed)
 		this.changed = changed;
 	}
-	, redraw : function(){
+	redraw(){
 		this.canvas.redraw();
 		// draw selected cell
 		if (this.getSelectedCell() != null && this.getDrawSelectedCell()){
@@ -370,29 +377,29 @@ PointerDecorator.prototype = {
 	/**
  	 * implementation of intermitent cursor
  	 */
-	, refresh : function(){
+	refresh(){
 		var shouldDraw = this.getSelectedCell() != null && new Date().getTime() % 2000 < 1000;
 		var changed = shouldDraw != this.getDrawSelectedCell();
 		this.setDrawSelectedCell(shouldDraw);
 		this.changed = this.changed || changed;
 	}
-	, cellDown : function(coord){
+	cellDown(coord: Coord){
 		this.canvas.cellDown(coord);
 		this.mouseStatus = "down";
 		this.setSelectedCell(coord);
 		this.changed = true;
 	}
-	, cellMove : function(coord){
+	cellMove(coord: Coord){
 		this.canvas.cellMove(coord);
 		this.mouseStatus = this.mouseStatus == "up" || this.mouseStatus == "hover"? "hover" : "moving";
 		this.setPointerCell(coord);
 		this.changed = true;
 	}
-	, cellUp : function(coord){
+	cellUp(coord: Coord){
 		this.canvas.cellUp(coord);
 		this.mouseStatus = "up";
 	}
-	, mouseLeave : function(){
+	mouseLeave(){
 		this.canvas.mouseLeave();
 		this.setPointerCell(null);
 		this.changed = true;
@@ -400,7 +407,7 @@ PointerDecorator.prototype = {
 	/**
 	 * This to prevent moving the document with the arrow keys
 	 */
-	, keyDown : function(eventObject){
+	keyDown(eventObject: JQuery.Event){
 		this.canvas.keyDown(eventObject);
 
 		// check if canvas has the focus
@@ -421,7 +428,7 @@ PointerDecorator.prototype = {
 	  	}
 	}
 
-	, keyUp : function(eventObject){
+	keyUp(eventObject: JQuery.Event){
 		this.canvas.keyUp(eventObject);
 		// check if we have the focus
 		if (!this.canvas.isFocused()){ return }
@@ -447,15 +454,15 @@ PointerDecorator.prototype = {
  * This tool handles the cursor position & movement (arrow keys) and pointer hovering.
  * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
  */
-function WritableCanvas(canvas){
-	this.class = "WritableCanvas";
-	this.canvas = canvas;
-}
-
-WritableCanvas.prototype = {
+class WritableCanvas {
+	class = "WritableCanvas";
+	canvas: CanvasDecorator & PointerDecorator & DrawableCanvas;
+	constructor (canvas: CanvasDecorator & PointerDecorator & DrawableCanvas){
+		this.canvas = canvas;
+	}
 
 	// some chars are not sent to keypress like period or space
-	keyDown : function(eventObject){
+	keyDown(eventObject: JQuery.Event){
 		this.canvas.keyDown(eventObject);
 		// dont write anything unless canvas has the focus
 		if (!this.canvas.isFocused()) return;
@@ -478,7 +485,7 @@ WritableCanvas.prototype = {
 		// delete next character
 		else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
   		// get current text
-			currentText = this.canvas.getText(this.canvas.getSelectedCell());
+			let currentText = this.canvas.getText(this.canvas.getSelectedCell());
 			if (currentText == null){ return;	}
 			// delete first character and replace last with space (we are moving text to left)
 			currentText = currentText.substring(1)+" ";
@@ -492,7 +499,7 @@ WritableCanvas.prototype = {
 			}
 		}
 	}
-	, keyPress : function(eventObject){
+	keyPress(eventObject: JQuery.Event){
 		// propagate event
 		this.canvas.keyPress(eventObject);
 		// dont write anything
@@ -507,7 +514,7 @@ WritableCanvas.prototype = {
 			}
 		}
 	}
-	, importChar : function(char){
+	importChar(char: string){
 		this.canvas.import(char,this.canvas.getSelectedCell());
 		this.canvas.commit();
 		this.canvas.setChanged(true);
@@ -517,31 +524,33 @@ WritableCanvas.prototype = {
 // -------------------------------------------- MOVABLE CANVAS DECORATOR ------------------------------------------- //
 
 class MovableCanvas extends CanvasDecorator {
-	constructor(canvas, htmlContainerSelectorId){
+	class = "MovableCanvas";
+	htmlContainerSelectorId: string;
+	lastMouseEvent:JQuery.Event | null = null;
+	shiftKeyEnabled = false;
+
+	constructor(canvas: ASCIICanvas & Grid, htmlContainerSelectorId: string){
 		super(canvas);
-		this.class = "MovableCanvas";
 		this.htmlContainerSelectorId = htmlContainerSelectorId;
-		this.lastMouseEvent = null;
-		this.shiftKeyEnabled = false;
 	}
 
-	keyDown(eventObject){
+	keyDown(eventObject:JQuery.Event){
 		super.keyDown(eventObject);
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 			this.shiftKeyEnabled = true;
 		}
 	}
-	keyUp(eventObject){
+	keyUp(eventObject:JQuery.Event){
 		super.keyUp(eventObject);
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 			this.shiftKeyEnabled = false;
 		}
 	}
-	mouseDown(eventObject) {
+	mouseDown(eventObject:JQuery.Event) {
 		super.mouseDown(eventObject);
 		this.lastMouseEvent = eventObject;
 	}
-	mouseMove(eventObject){
+	mouseMove(eventObject:JQuery.Event){
 		super.mouseMove(eventObject);
 		if (!super.isFocused() || !this.shiftKeyEnabled) return;
 		if (this.lastMouseEvent == null) return;
@@ -553,6 +562,4 @@ class MovableCanvas extends CanvasDecorator {
 		super.mouseUp();
 		this.lastMouseEvent = null;
 	}
-
-	
 }

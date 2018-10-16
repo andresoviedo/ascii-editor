@@ -2,8 +2,14 @@
  * Encapsulates data for the surrounding pixels
  */
 class PixelContext {
-	constructor(left, right, top, bottom){
-		this.class = 'PixelContext';
+	class = 'PixelContext';
+	left: number;
+	right: number;
+	bottom: number;
+	top: number;
+	length: number;
+
+	constructor(left:number, right:number, top:number, bottom:number){
 		this.left = left;
 		this.right = right;
 		this.bottom = bottom;

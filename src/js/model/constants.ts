@@ -1,4 +1,9 @@
 
+let leftCoord: Coord;
+let rightCoord: Coord;
+let topCoord: Coord;
+let bottomCoord: Coord;
+
 function init_constants(){
 
   // Default font for drawing the ASCII pixels
@@ -37,7 +42,11 @@ function init_constants(){
 
 
   // Basic constants
-  window.zeroCoord = new Coord(0,0), leftCoord = new Coord(-1, 0), rightCoord = new Coord(1, 0), topCoord = new Coord(0, -1), bottomCoord = new Coord(0, 1);
+  window.zeroCoord = new Coord(0,0)
+  leftCoord = new Coord(-1, 0)
+  rightCoord = new Coord(1, 0)
+  topCoord = new Coord(0, -1)
+  bottomCoord = new Coord(0, 1);
   window.contextCoords = [leftCoord, rightCoord, topCoord, bottomCoord];
 
 }

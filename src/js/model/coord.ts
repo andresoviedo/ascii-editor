@@ -3,35 +3,37 @@
 /**
  * A simple pair of coordinates x,y for to use to locate any pixel
  */
-function Coord(x, y) {
-	this.class = 'Coord';
-	this.x = x;
-	this.y = y;
-}
+class Coord {
+	class = 'Coord';
+	readonly x: number;
+	readonly y: number;
 
-Coord.prototype = {
-	toString : function()	{
+	constructor(x: number, y: number){
+		this.x = x;
+		this.y = y;
+	}
+	toString()	{
 			return "Coord["+this.x+","+this.y+"]";
 	}
-	, add : function(other) {
+	add(other: Coord) {
 		return new Coord(this.x + other.x, this.y + other.y);
 	}
-	, equals : function(other){
+	equals(other: Coord){
 		return this.x == other.x && this.y == other.y;
 	}
-	, substract : function(other){
+	substract(other: Coord){
 		return new Coord(this.x - other.x, this.y - other.y);
 	}
-	, getLength : function() {
+	getLength() {
 	  return Math.sqrt(this.x * this.x + this.y * this.y);
 	}
-	, clone : function() {
+	clone() {
 		return new Coord(this.x, this.y);
 	}
-	, hasSameAxis : function(other) {
+	hasSameAxis(other: Coord) {
 		return this.x == other.x || this.y == other.y;
 	}
-	, isOppositeDir: function(other){
+	isOppositeDir(other: Coord){
 		return this.add(other).getLength() == 0;
 	}
 }

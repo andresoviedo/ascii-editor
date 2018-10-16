@@ -28,42 +28,42 @@ function init(){
 	// initialize grid
 	var grid = new Grid();
 	// initialize canvas
-	var canvas = delegateProxy(new ASCIICanvas(document.getElementById("ascii-canvas"),grid),"grid");
-	canvas.init();
+  let c1 = delegateProxy(new ASCIICanvas(document.getElementById("ascii-canvas"), grid), "grid");
+	c1.init();
 	// add canvas movability
-	canvas = new MovableCanvas(canvas, "#canvas-container");
+	let c2 = new MovableCanvas(c1, "#canvas-container");
 	// add canvas zoom feature
-	canvas = delegateProxy(new ZoomableCanvas(canvas), "canvas");
-	canvas.init();
+	let c3 = delegateProxy(new ZoomableCanvas(c2), "canvas");
+	c3.init();
 	// add ascii drawing capabilities
-	canvas = delegateProxy(new DrawableCanvas(canvas), "canvas");
+	let c4 = delegateProxy(new DrawableCanvas(c3), "canvas");
 	// add ascii drawing capabilities with style
-	canvas = delegateProxy(new StylableCanvas(canvas), "canvas");
+	let c5 = delegateProxy(new StylableCanvas(c4), "canvas");
 	// add cursor decorator
-	canvas = delegateProxy(new PointerDecorator(canvas, "pointer-button"), "canvas");
+	let c6 = delegateProxy(new PointerDecorator(c5, "pointer-button"), "canvas");
 	// add char writing capabilities
-	canvas = delegateProxy(new WritableCanvas(canvas), "canvas");
+	let c7 = delegateProxy(new WritableCanvas(c6), "canvas");
 	// instantiate canvas controller (mouse control, keyboard control, tools, etc)
-	var controller = new CanvasController(canvas);
+	var controller = new CanvasController(c7);
 	// add clear canvas capabilities
-	controller.addTool(new ClearCanvasTool("clear-button",canvas));
+	controller.addTool(new ClearCanvasTool("clear-button",c7));
 	// add set/edit text capabilities
-	controller.addTool(new EditTextTool("text-button",canvas));
+	controller.addTool(new EditTextTool("text-button",c7));
 	// add export to ascii capabilities
-	controller.addTool(new ExportASCIITool("export-button", canvas, "#canvas-container", "#dialog-widget"));
+	controller.addTool(new ExportASCIITool("export-button", c7, "#canvas-container", "#dialog-widget"));
 	// add draw box capabilities
-	controller.addTool(new BoxDrawerTool("box-button", canvas));
+	controller.addTool(new BoxDrawerTool("box-button", c7));
 	// add line drawing capabilities
-	controller.addTool(new LineTool("line-button", canvas));
+	controller.addTool(new LineTool("line-button", c7));
 	// add selection capabilities
-	controller.addTool(new SelectTool("select-button", canvas));
+	controller.addTool(new SelectTool("select-button", c7));
 	// set default tool
 	controller.setActiveTool("select-button");
 	// start animation loop
-	animate(canvas);
+	animate(c7);
 }
 
-function animate(canvas){
+function animate(canvas:CanvasDecorator){
 	if (canvas.hasChanged()){
 		canvas.redraw();
 		canvas.setChanged(false);

@@ -1,0 +1,39 @@
+{
+  "name": "org.andresoviedo.ascii-editor",
+  "version": "2.0.0",
+  "description": "ASCII UML Editor",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "tsc": "tsc",
+    "tsc:w": "tsc -w",
+    "lite": "lite-server",
+    "start": "concurrently \"npm run tsc:w\" \"npm run lite\" "
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andresoviedo/ascii-editor.git"
+  },
+  "keywords": [
+    "ASCII",
+    "UML",
+    "Editor"
+  ],
+  "author": "Andrés Oviedo",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/andresoviedo/ascii-editor/issues"
+  },
+  "homepage": "https://github.com/andresoviedo/ascii-editor#readme",
+  "devDependencies": {
+    "concurrently": "^3.6.1",
+    "lite-server": "^2.4.0",
+    "typescript": "^3.0.1"
+  },
+  "dependencies": {
+    "@types/jquery": "^3.3.18"
+  }
+}
