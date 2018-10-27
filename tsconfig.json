@@ -11,12 +11,12 @@
     // "downlevelIteration": true,            /* Provide full support for iterables in 'for-of', spread, and destructuring when targeting 'ES5' or 'ES3'. */
 
     /* Strict Type-Checking Options */
-    "strict": true,                           /* Enable all strict type-checking options. */
+    "strict": false,                           /* Enable all strict type-checking options. */
 
     /* Additional Checks */
-    "noUnusedLocals": true,                /* Report errors on unused locals. */
-    "noUnusedParameters": true,            /* Report errors on unused parameters. */
-    "noImplicitReturns": true,             /* Report error when not all code paths in function return a value. */
-    "noFallthroughCasesInSwitch": true,    /* Report errors for fallthrough cases in switch statement. */
+    "noUnusedLocals": false,                /* Report errors on unused locals. */
+    "noUnusedParameters": false,            /* Report errors on unused parameters. */
+    "noImplicitReturns": false,             /* Report error when not all code paths in function return a value. */
+    "noFallthroughCasesInSwitch": false,    /* Report errors for fallthrough cases in switch statement. */
   }
 }

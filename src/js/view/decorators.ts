@@ -1,166 +1,24 @@
-import construct = Reflect.construct;
-
-class CanvasDecorator {
-	canvas: ASCIICanvas & Grid;
-	constructor(canvas:ASCIICanvas & Grid){
-		this.canvas = canvas;
-	}
-
-	getCanvasHTML(){
-		return this.canvas.getCanvasHTML();
-	}
-
-	getGrid(){
-		return this.canvas.getGrid();
-	}
-
-	getWidth(){
-		return this.canvas.getWidth();
-	}
-
-	hasChanged(){
-		return this.canvas.hasChanged();
-	}
-
-	setChanged(changed: boolean){
-		this.canvas.setChanged(changed);
-	}
-
-	redraw(){
-		this.canvas.redraw();
-	}
-
-	get pixelsStack() {
-		return this.canvas.pixelsStack;
-	}
-
-	getPixel(coord:Coord){
-		return this.canvas.getPixel(coord);
-	}
-
-	stackPixel(coord:Coord, value:string) {
-		this.canvas.stackPixel(coord,value);
-	}
-
-	drawText(text:string,coord: Coord,style: string){
-		this.canvas.drawText(text,coord,style);
-	}
-
-	drawRect(coord:Coord,width: number,height: number,style: string){
-		this.canvas.drawRect(coord,width,height,style);
-	}
-
-	get cursor(){
-		return this.canvas.cursor;
-	}
-
-	getZoom () {
-		return this.canvas.getZoom();
-	}
-
-	setZoom(newZoom: number) {
-		this.canvas.setZoom(newZoom);
-	}
-
-	resize(){
-		this.canvas.resize();
-	}
-
-	mouseEnter(){
-		this.canvas.mouseEnter();
-	}
-
-	mouseUp(){
-		this.canvas.mouseUp();
-	}
-
-	mouseLeave(){
-		this.canvas.mouseLeave();
-	}
-
-	mouseMove(eventObject: JQuery.Event){
-		this.canvas.mouseMove(eventObject);
-	}
-
-	mouseDown(eventObject: JQuery.Event){
-		this.canvas.mouseDown(eventObject);
-	}
-
-	cellDown(coord:Coord){
-		this.canvas.cellDown(coord);
-	}
-
-	cellUp(coord:Coord){
-		this.canvas.cellUp(coord);
-	}
-
-	keyDown(eventObject:JQuery.Event){
-		this.canvas.keyDown(eventObject);
-	}
-
-	keyUp(eventObject:JQuery.Event){
-		this.canvas.keyUp(eventObject);
-	}
-
-	keyPress(eventObject:JQuery.Event){
-		this.canvas.keyPress(eventObject);
-	}
-
-	isFocused(){
-		return this.canvas.isFocused();
-	}
-
-	getGridCoord(canvasHTMLCoord:Coord){
-		return this.canvas.getGridCoord(canvasHTMLCoord);
-	}
-
-	cellMove(coord:Coord){
-		this.canvas.cellMove(coord);
-	}
-
-	getCellWidth(){
-		return this.canvas.getCellWidth();
-	}
-
-	getCellHeight(){
-		return this.canvas.getCellHeight();
-	}
-
-	import(text:string, coord: Coord, ommitBlanks?: boolean, ommitUnrecognized?: boolean) {
-		this.canvas.import(text,coord,ommitBlanks,ommitUnrecognized);
-	}
-
-	moveArea(area:Box, diff:Coord) {
-		this.canvas.moveArea(area,diff);
-	}
-
-	commit(){
-		this.canvas.commit();
-	}
-
-	rollback(){
-		return this.canvas.rollback();
-	}
-}
-
 // ----------------------------------------------- STYLE DECORATOR ------------------------------------------------- //
 
 class StylableCanvas {
-	class = "StylableCanvas";
-	canvas: DrawableCanvas & CanvasDecorator
-	constructor(canvas: DrawableCanvas & CanvasDecorator){
-		this.canvas = canvas;
+	readonly class = "StylableCanvas";
+	readonly grid: Grid;
+	readonly drawable: DrawableCanvas;
+
+	constructor(grid: Grid, drawable: DrawableCanvas){
+		this.grid = grid;
+		this.drawable = drawable;
 	}
 
   drawLine(startCoord: Coord, endCoord: Coord, drawHorizontalFirst: string, pixelValue: string, ommitIntersections: boolean) {
-		this.canvas.drawLine(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections);
+		this.drawable.drawLine(startCoord, endCoord, drawHorizontalFirst, pixelValue, ommitIntersections);
 		// get drawing style
 		let drawStyle = $("#style-select").val();
 		// fix line style
-		for (let index in this.canvas.pixelsStack){
-			let pixelPosition = this.canvas.pixelsStack[index];
+		for (let index in this.grid.pixelsStack){
+			let pixelPosition = this.grid.pixelsStack[index];
 			let pixel = pixelPosition.pixel;
-			pixelValue = this.getPixelValueIntegrated(pixelPosition.coord, drawStyle);
+			pixelValue = this.getPixelValueIntegrated(pixelPosition.coord, String(drawStyle));
 			pixel.tempValue = pixelValue;
 		}
 	}
@@ -170,7 +28,7 @@ class StylableCanvas {
 	 * so its nicely integrated into the ASCII code
 	 */
 	getPixelValueIntegrated(coord: Coord, drawStyle:string) {
-		var pixel = this.canvas.getPixel(coord);
+		var pixel = this.grid.getPixel(coord);
 		var pixelValue = pixel.getValue();
 
 		// test whether the pixel is either of the drawing characters
@@ -183,7 +41,7 @@ class StylableCanvas {
 		}
 
 		// get pixel context so we decide which is the best character for integration
-		var pixelContext = this.canvas.getPixelContext(coord);
+		var pixelContext = this.drawable.getPixelContext(coord);
 
 		// handle cases when we are drawing a box
 		if (isBoxPixel){
@@ -331,8 +189,8 @@ class StylableCanvas {
  * This tool also supports the writing and the edition of the text (Backspace & Delete are supported)
  */
 class PointerDecorator {
-	class = "PointerDecorator";
-	canvas: StylableCanvas & DrawableCanvas & CanvasDecorator;
+	readonly class = "PointerDecorator";
+	readonly canvas: ASCIICanvas;
 	toolId: string
 	selectedCell: Coord | null = null;
 	pointerCell: Coord | null = null;
@@ -340,9 +198,19 @@ class PointerDecorator {
 	changed = false;
 	mouseStatus: string | null = null;
 
-	constructor(canvas: StylableCanvas & DrawableCanvas & CanvasDecorator, toolId: string){
+	constructor(canvas: ASCIICanvas, toolId: string){
 		this.canvas = canvas;
 		this.toolId = toolId;
+	}
+
+	init(){
+		const events = this.canvas.events;
+		events.onCellDown(this.cellDown.bind(this));
+		events.onCellMove(this.cellMove.bind(this));
+		events.onCellUp(this.cellUp.bind(this));
+		events.onMouseLeave(this.mouseLeave.bind(this));
+		events.onKeyDown(this.keyDown.bind(this));
+		events.onKeyUp(this.keyUp.bind(this))
 	}
 
 	getPointerCell() { return this.pointerCell }
@@ -357,14 +225,13 @@ class PointerDecorator {
 	}
 	hasChanged(){
 		this.refresh();
-		return this.canvas.hasChanged() || this.changed;
+		return this.changed;
 	}
 	setChanged(changed: boolean){
-		this.canvas.setChanged(changed)
 		this.changed = changed;
 	}
+
 	redraw(){
-		this.canvas.redraw();
 		// draw selected cell
 		if (this.getSelectedCell() != null && this.getDrawSelectedCell()){
 			this.canvas.drawText("▏",this.getSelectedCell(),"#009900");
@@ -377,39 +244,35 @@ class PointerDecorator {
 	/**
  	 * implementation of intermitent cursor
  	 */
-	refresh(){
+	private refresh(){
 		var shouldDraw = this.getSelectedCell() != null && new Date().getTime() % 2000 < 1000;
 		var changed = shouldDraw != this.getDrawSelectedCell();
 		this.setDrawSelectedCell(shouldDraw);
 		this.changed = this.changed || changed;
 	}
-	cellDown(coord: Coord){
-		this.canvas.cellDown(coord);
+
+	private cellDown(coord: Coord){
 		this.mouseStatus = "down";
 		this.setSelectedCell(coord);
 		this.changed = true;
 	}
-	cellMove(coord: Coord){
-		this.canvas.cellMove(coord);
+	private cellMove(coord: Coord){
 		this.mouseStatus = this.mouseStatus == "up" || this.mouseStatus == "hover"? "hover" : "moving";
 		this.setPointerCell(coord);
 		this.changed = true;
 	}
-	cellUp(coord: Coord){
-		this.canvas.cellUp(coord);
+	private cellUp(){
 		this.mouseStatus = "up";
 	}
-	mouseLeave(){
-		this.canvas.mouseLeave();
+	private mouseLeave(){
 		this.setPointerCell(null);
 		this.changed = true;
 	}
+
 	/**
 	 * This to prevent moving the document with the arrow keys
 	 */
-	keyDown(eventObject: JQuery.Event){
-		this.canvas.keyDown(eventObject);
-
+	private keyDown(eventObject: JQuery.Event){
 		// check if canvas has the focus
 		if (this.canvas.isFocused()){ return }
 
@@ -428,8 +291,7 @@ class PointerDecorator {
 	  	}
 	}
 
-	keyUp(eventObject: JQuery.Event){
-		this.canvas.keyUp(eventObject);
+	private keyUp(eventObject: JQuery.Event){
 		// check if we have the focus
 		if (!this.canvas.isFocused()){ return }
 		// check if there is the pointer is inside the canvas
@@ -456,36 +318,45 @@ class PointerDecorator {
  */
 class WritableCanvas {
 	class = "WritableCanvas";
-	canvas: CanvasDecorator & PointerDecorator & DrawableCanvas;
-	constructor (canvas: CanvasDecorator & PointerDecorator & DrawableCanvas){
+	canvas: ASCIICanvas;
+	pointer: PointerDecorator;
+	drawable: DrawableCanvas;
+
+	constructor (canvas: ASCIICanvas, pointer: PointerDecorator, drawable: DrawableCanvas){
 		this.canvas = canvas;
+		this.pointer = pointer;
+		this.drawable = drawable;
+	}
+
+	init(){
+		this.canvas.events.onKeyDown(this.keyDown.bind(this));
+		this.canvas.events.onKeyPress(this.keyPress.bind(this));
 	}
 
 	// some chars are not sent to keypress like period or space
 	keyDown(eventObject: JQuery.Event){
-		this.canvas.keyDown(eventObject);
 		// dont write anything unless canvas has the focus
 		if (!this.canvas.isFocused()) return;
 		// prevent space key to scroll down page
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SPACE) {
 			eventObject.preventDefault();
 			this.importChar(" ");
-			this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+			this.pointer.setSelectedCell(this.pointer.getSelectedCell().add(rightCoord));
 		} /*else if (eventObject.keyCode == KeyEvent.DOM_VK_PERIOD){
 			this.importChar(".");
 			this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
 		}*/
 		// delete previous character
 		else if (eventObject.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
-			if (this.canvas.getPixel(this.canvas.getSelectedCell().add(leftCoord)) != undefined){
-				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(leftCoord));
+			if (this.canvas.grid.getPixel(this.pointer.getSelectedCell().add(leftCoord)) != undefined){
+				this.pointer.setSelectedCell(this.pointer.getSelectedCell().add(leftCoord));
 				this.importChar(" ");
 			}
   	}
 		// delete next character
 		else if (eventObject.keyCode == KeyEvent.DOM_VK_DELETE){
   		// get current text
-			let currentText = this.canvas.getText(this.canvas.getSelectedCell());
+			let currentText = this.drawable.getText(this.pointer.getSelectedCell());
 			if (currentText == null){ return;	}
 			// delete first character and replace last with space (we are moving text to left)
 			currentText = currentText.substring(1)+" ";
@@ -493,73 +364,75 @@ class WritableCanvas {
   	}
 		// jump to next line
 		else if (eventObject.keyCode == KeyEvent.DOM_VK_RETURN){
-			var startOfText = this.canvas.getTextColStart(this.canvas.getSelectedCell());
+			var startOfText = this.drawable.getTextColStart(this.pointer.getSelectedCell());
 			if (startOfText && startOfText.add(bottomCoord)){
-				this.canvas.setSelectedCell(startOfText.add(bottomCoord));
+				this.pointer.setSelectedCell(startOfText.add(bottomCoord));
 			}
 		}
 	}
 	keyPress(eventObject: JQuery.Event){
-		// propagate event
-		this.canvas.keyPress(eventObject);
 		// dont write anything
 		if (!this.canvas.isFocused()){ return }
 		// write key
-		if (this.canvas.getPixel(this.canvas.getSelectedCell().add(rightCoord)) != undefined){
+		if (this.canvas.grid.getPixel(this.pointer.getSelectedCell().add(rightCoord)) != undefined){
 			try{
 				this.importChar(String.fromCharCode(eventObject.charCode));
-				this.canvas.setSelectedCell(this.canvas.getSelectedCell().add(rightCoord));
+				this.pointer.setSelectedCell(this.pointer.getSelectedCell().add(rightCoord));
 			}catch(e){
 				console.log(e.message);
 			}
 		}
 	}
 	importChar(char: string){
-		this.canvas.import(char,this.canvas.getSelectedCell());
-		this.canvas.commit();
+		this.canvas.grid.import(char,this.pointer.getSelectedCell());
+		this.canvas.grid.commit();
 		this.canvas.setChanged(true);
 	}
 }
 
 // -------------------------------------------- MOVABLE CANVAS DECORATOR ------------------------------------------- //
 
-class MovableCanvas extends CanvasDecorator {
+class MovableCanvas {
 	class = "MovableCanvas";
-	htmlContainerSelectorId: string;
+	canvas: ASCIICanvas;
+	$container: JQuery;
 	lastMouseEvent:JQuery.Event | null = null;
 	shiftKeyEnabled = false;
 
-	constructor(canvas: ASCIICanvas & Grid, htmlContainerSelectorId: string){
-		super(canvas);
-		this.htmlContainerSelectorId = htmlContainerSelectorId;
+	constructor(canvas: ASCIICanvas, htmlContainerSelectorId: string){
+		this.$container = $(htmlContainerSelectorId);
+		this.canvas = canvas;
+	}
+
+	init(){
+		this.canvas.events.onKeyDown(this.keyDown.bind(this));
+		this.canvas.events.onKeyUp(this.keyUp.bind(this));
+		this.canvas.events.onMouseDown(this.mouseDown.bind(this));
+		this.canvas.events.onMouseMove(this.mouseMove.bind(this));
+		this.canvas.events.onMouseUp(this.mouseUp.bind(this));
 	}
 
 	keyDown(eventObject:JQuery.Event){
-		super.keyDown(eventObject);
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 			this.shiftKeyEnabled = true;
 		}
 	}
 	keyUp(eventObject:JQuery.Event){
-		super.keyUp(eventObject);
 		if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 			this.shiftKeyEnabled = false;
 		}
 	}
 	mouseDown(eventObject:JQuery.Event) {
-		super.mouseDown(eventObject);
 		this.lastMouseEvent = eventObject;
 	}
 	mouseMove(eventObject:JQuery.Event){
-		super.mouseMove(eventObject);
-		if (!super.isFocused() || !this.shiftKeyEnabled) return;
+		if (!this.canvas.isFocused() || !this.shiftKeyEnabled) return;
 		if (this.lastMouseEvent == null) return;
-		$(this.htmlContainerSelectorId).scrollTop(Math.max(0,$(this.htmlContainerSelectorId).scrollTop() - (eventObject.clientY-this.lastMouseEvent.clientY)));
-		$(this.htmlContainerSelectorId).scrollLeft(Math.max(0,$(this.htmlContainerSelectorId).scrollLeft()  - (eventObject.clientX-this.lastMouseEvent.clientX)));
+		this.$container.scrollTop(Math.max(0,this.$container.scrollTop() - (eventObject.clientY-this.lastMouseEvent.clientY)));
+		this.$container.scrollLeft(Math.max(0,this.$container.scrollLeft()  - (eventObject.clientX-this.lastMouseEvent.clientX)));
 		this.lastMouseEvent = eventObject;
 	}
 	mouseUp(){
-		super.mouseUp();
 		this.lastMouseEvent = null;
 	}
 }

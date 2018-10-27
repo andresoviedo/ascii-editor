@@ -1,11 +1,9 @@
 class DrawableCanvas {
 	class = "DrawableCanvas";
-	canvas: CanvasDecorator;
 	grid: Grid;
 
-	constructor(canvas: DrawableCanvas['canvas']){
-		this.canvas = canvas;
-		this.grid = canvas.getGrid();
+	constructor(grid: Grid){
+		this.grid = grid;
 	}
 
 	/**
@@ -13,7 +11,7 @@ class DrawableCanvas {
 	 */
 	isDrawChar(pixel:Pixel | null | undefined) {
 		if (pixel == null || pixel == undefined){
-			return pixel;
+			return null;
 		}
 		return UC.isChar(pixel.getValue());
 	}
@@ -21,11 +19,11 @@ class DrawableCanvas {
 	 * Returns the context of the specified pixel. That is, the status of the surrounding pixels
 	 */
 	getPixelContext(coord: Coord) {
-		var left = this.isDrawChar(this.canvas.getPixel(coord.add(leftCoord)));
-		var right = this.isDrawChar(this.canvas.getPixel(coord.add(rightCoord)));
-		var top = this.isDrawChar(this.canvas.getPixel(coord.add(topCoord)));
-		var bottom = this.isDrawChar(this.canvas.getPixel(coord.add(bottomCoord)));
-		return new PixelContext(left, right, top, bottom);
+		var left = this.isDrawChar(this.grid.getPixel(coord.add(leftCoord)));
+		var right = this.isDrawChar(this.grid.getPixel(coord.add(rightCoord)));
+		var top = this.isDrawChar(this.grid.getPixel(coord.add(topCoord)));
+		var bottom = this.isDrawChar(this.grid.getPixel(coord.add(bottomCoord)));
+		return new PixelContext(Number(left), Number(right), Number(top), Number(bottom));
 	}
 	drawLine(startCoord:Coord, endCoord:Coord, mode:string | boolean, pixelValue:string, ommitIntersections?:boolean) {
 		// console.log("Drawing line from "+startCoord+" to "+endCoord+" with value '"+pixelValue+"'...");
@@ -36,7 +34,7 @@ class DrawableCanvas {
 			|| mode == "vertical-horizontal" || mode == "vertical-horizontal"){
 			return this.drawLineImpl2(startCoord, endCoord, mode, pixelValue, ommitIntersections);
 		}
-		return this.drawLineImpl(startCoord, endCoord, mode, pixelValue, ommitIntersections);
+		return this.drawLineImpl(startCoord, endCoord, Boolean(mode), pixelValue, ommitIntersections);
 	}
 	/**
 	 * This functions draws a line of pixels from startCoord to endCoord. The line can be drawn 2 ways: either first horizontal line of first vertical line.
@@ -203,7 +201,7 @@ class DrawableCanvas {
 		var ret:Coord[] = [];
 	  for (let i=0, currentCord = coord;;i++) {
 	    var nextCoord = currentCord.add(direction);
-	    if (!this.isDrawChar(this.canvas.getPixel(nextCoord))) {
+	    if (!this.isDrawChar(this.grid.getPixel(nextCoord))) {
 	      if(!currentCord.equals(coord)) ret.push(currentCord);
 				return ret;
 	    }
@@ -218,7 +216,7 @@ class DrawableCanvas {
 	  for (var i=0, currentCoord = coord, currentDirection = direction; i< 1000;i++) {
 			var currentPixelContext = this.getPixelContext(currentCoord);
 	    var nextCoord = currentCoord.add(currentDirection);
-			var isNextPixelDrawChar = this.isDrawChar(this.canvas.getPixel(nextCoord));
+			var isNextPixelDrawChar = this.isDrawChar(this.grid.getPixel(nextCoord));
 			if(currentPixelContext.getLength() == 2 && isNextPixelDrawChar){ currentCoord = nextCoord; continue; }
 			if(currentPixelContext.getLength() >= 3 && !currentCoord.equals(coord)) return currentCoord;
 			if(currentPixelContext.left && currentDirection.add(leftCoord).getLength() != 0) { currentCoord = currentCoord.add(leftCoord); currentDirection = leftCoord; continue; }
@@ -233,7 +231,7 @@ class DrawableCanvas {
 	  for (var i=0, currentCoord = coord, currentDirection = direction; i< 1000;i++) {
 			var currentPixelContext = this.getPixelContext(currentCoord);
 			var nextCoord = currentCoord.add(currentDirection);
-			var isNextPixelDrawChar = this.isDrawChar(this.canvas.getPixel(nextCoord));
+			var isNextPixelDrawChar = this.isDrawChar(this.grid.getPixel(nextCoord));
 			if(currentPixelContext.length >= 3 && !currentCoord.equals(coord)) return ret;
 			if(currentPixelContext.length >= 2 && isNextPixelDrawChar){ ret.push(currentCoord); currentCoord = currentCoord.add(currentDirection); continue; }
 			if(currentPixelContext.left && !currentDirection.isOppositeDir(leftCoord)) { currentDirection = leftCoord; continue; }
@@ -250,8 +248,8 @@ class DrawableCanvas {
 			for (let endPointIndex in endPoints) {
 				let endPoint = endPoints[endPointIndex];
 				let isHorizontal = window.contextCoords[direction].x != 0;
-				let startWithArrow = window.arrowChars1.indexOf(this.canvas.getPixel(coord).getValue()) != -1;
-				let endWithArrow = window.arrowChars1.indexOf(this.canvas.getPixel(endPoint).getValue()) != -1;
+				let startWithArrow = window.arrowChars1.indexOf(this.grid.getPixel(coord).getValue()) != -1;
+				let endWithArrow = window.arrowChars1.indexOf(this.grid.getPixel(endPoint).getValue()) != -1;
 				let endPointInfo = new EndPointInfo(endPoint, this.getPixelContext(endPoint), isHorizontal, startWithArrow, endWithArrow);
 				endPointsInfo.push(endPointInfo);
 				if (length == 1) {
@@ -267,7 +265,7 @@ class DrawableCanvas {
 						var endPoints2 = this.getFinalCoords(endPoint, window.contextCoords[direction2]);
 						for (var endPointIndex2 in endPoints2){
 							let ep2 = new EndPointInfo(endPoints2[endPointIndex2], this.getPixelContext(endPoints2[endPointIndex2]), isHorizontal,
-								startWithArrow, -1 != window.arrowChars1.indexOf(this.canvas.getPixel(endPoints2[endPointIndex2]).getValue()), endWithArrow);
+								startWithArrow, -1 != window.arrowChars1.indexOf(this.grid.getPixel(endPoints2[endPointIndex2]).getValue()), endWithArrow);
 							endPointInfo.childEndpoints.push(ep2);
 							// console.log("Found child endpoint: "+ep2);
 						}
@@ -279,7 +277,7 @@ class DrawableCanvas {
 	}
 
   detectBox(coord: Coord): Coord[] | null {
-		if (!this.isDrawChar(this.canvas.getPixel(coord))) return null; // did you click on the right place?
+		if (!this.isDrawChar(this.grid.getPixel(coord))) return null; // did you click on the right place?
 		var loopCoords = {left:1, right:1, top:1, bottom:1};
 		var firstDir = null;
 		var pixelContext = this.getPixelContext(coord);
@@ -293,7 +291,7 @@ class DrawableCanvas {
 			if (pixelContext.getLength() < 2) return null; // dead end
 	    var nextCoord = currentCoord.add(currentDirection); // let's try next char
 			if (nextCoord.equals(coord)) return points; // loop complete :)
-			var isNextPixelDrawChar = this.isDrawChar(this.canvas.getPixel(nextCoord));
+			var isNextPixelDrawChar = this.isDrawChar(this.grid.getPixel(nextCoord));
 			if (pixelContext.getLength() >= 2 && isNextPixelDrawChar) { points.push(currentCoord); currentCoord	= nextCoord; continue; }
 			if (pixelContext.bottom && loopCoords["bottom"] && !currentDirection.isOppositeDir(bottomCoord)) { loopCoords["bottom"]=0; currentDirection = bottomCoord; continue; }
 			if (pixelContext.left && loopCoords["left"] && !currentDirection.isOppositeDir(leftCoord)) { loopCoords["left"]=0; currentDirection = leftCoord; continue; }
@@ -316,7 +314,7 @@ class DrawableCanvas {
 		if (this.grid.isOutOfBounds(area.min) || this.grid.isOutOfBounds(area.max)) throw "OutOfBoundException";
 		for (let col = area.minX;col<=area.maxX;col++){
 			for (let row = area.minY;row<=area.maxY;row++){
-				if (!this.isDrawChar(this.canvas.getPixel(new Coord(col,row)))) return false;
+				if (!this.isDrawChar(this.grid.getPixel(new Coord(col,row)))) return false;
 			}
 		}
 		return area.squareSize() > 0;

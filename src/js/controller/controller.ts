@@ -2,35 +2,36 @@
 
 class CanvasController{
 	class = 'CanvasController';
-	canvas: CanvasDecorator & PointerDecorator;
-	canvasHTML: HTMLCanvasElement;
+	canvas: ASCIICanvas;
 	tools: Record<string,CanvasTool> = {};
 	shiftKeyEnabled = false;
 	dummyTool = new CanvasTool("");
 	lastPointerCoord: Coord | null = null;
 
-	constructor (canvas: CanvasDecorator & PointerDecorator) {
+	constructor (canvas: ASCIICanvas, pointer: PointerDecorator) {
 		this.canvas = canvas;
-		this.canvasHTML = canvas.getCanvasHTML();
 
 		this.init();
 		this.lastPointerCoord = null;
 		// visual only: adapt canvas container
 		$("#canvas-container").width(this.canvas.getWidth());
 		// select first cell, so user can start writing right from start
-		this.canvas.setSelectedCell(new Coord(0,0));
+		pointer.setSelectedCell(new Coord(0,0));
 	}
 	init() {
 		$("#tools > button.tool").click((eventObject) => {
 			// active tool
 			this.setActiveTool(eventObject.target.id);
 		});
+
+		const $canvas = this.canvas.$canvas;
+		const events = this.canvas.events;
+
 		// bind mouse action for handling the drawing
-		$(this.canvas.getCanvasHTML()).mousedown((eventObject: JQuery.Event) => {
-			// propagate event
-			this.canvas.mouseDown(eventObject);
+		$canvas.mousedown((eventObject: JQuery.Event) => {
 			this.lastPointerCoord = this.getGridCoord(eventObject);
-			this.canvas.cellDown(this.lastPointerCoord);
+			events.triggerMouseDown(eventObject);
+			events.triggerCellDown(this.lastPointerCoord);
 			// invoke active tool
 			try{
 				this.getActiveTool().mouseDown(eventObject);
@@ -39,10 +40,10 @@ class CanvasController{
 				console.error(e.stack);
 			}
 		});
-		$(this.canvas.getCanvasHTML()).mouseup(() =>{
+		$canvas.mouseup((evt) =>{
 			// propagate event
-			this.canvas.mouseUp();
-			this.canvas.cellUp(this.lastPointerCoord);
+			events.triggerMouseUp(evt);
+			events.triggerCellUp(this.lastPointerCoord);
 			try{
 				this.getActiveTool().mouseUp();
 				this.getActiveTool().cellUp(this.lastPointerCoord);
@@ -50,21 +51,21 @@ class CanvasController{
 				console.error(e.stack);
 			}
 		});
-		$(this.canvas.getCanvasHTML()).mouseenter(() => {
-			this.canvas.getCanvasHTML().style.cursor = this.canvas.cursor();
-			this.canvas.mouseEnter();
+		$canvas.mouseenter((evt) => {
+			this.canvas.canvasHTML.style.cursor = this.canvas.cursor();
+			events.triggerMouseEnter(evt);
 			try{
 				this.getActiveTool().mouseEnter();
-				this.canvas.getCanvasHTML().style.cursor = this.getActiveTool().cursor();
+				this.canvas.canvasHTML.style.cursor = this.getActiveTool().cursor();
 			} catch(e){
 				console.error(e.stack);
 			}
 		});
-		$(this.canvas.getCanvasHTML()).mousemove((eventObject)=> {
+		$canvas.mousemove((eventObject)=> {
 			// propagate event
-			this.canvas.mouseMove(eventObject);
+			events.triggerMouseMove(eventObject);
 			this.lastPointerCoord = this.getGridCoord(eventObject);
-			this.canvas.cellMove(this.lastPointerCoord);
+			events.triggerCellMove(this.lastPointerCoord);
 			try{
 				this.getActiveTool().mouseMove(eventObject);
 				this.getActiveTool().cellMove(this.lastPointerCoord);
@@ -72,19 +73,23 @@ class CanvasController{
 				console.error(e.stack);
 			}
 		});
-		$(this.canvas.getCanvasHTML()).mouseleave(()=>{
-			this.canvas.mouseLeave();
+		$canvas.mouseleave((evt)=>{
+			events.triggerMouseLeave(evt);
 			try{
 				this.getActiveTool().mouseLeave();
 			} catch(e){
 				console.error(e.stack);
 			}
 		});
+		$canvas.bind("mousewheel", (evt)=>{
+			events.triggerMouseWheel(evt);
+		});
+
 		$(window).keydown((eventObject)=>{
 			if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 				this.shiftKeyEnabled = true;
 			}
-			this.canvas.keyDown(eventObject);
+			events.triggerKeyDown(eventObject);
 			try{
 				this.getActiveTool().keyDown(eventObject);
 			} catch(e){
@@ -92,7 +97,7 @@ class CanvasController{
 			}
 		});
 		$(document).keypress((eventObject)=>{
-			this.canvas.keyPress(eventObject);
+			events.triggerKeyPress(eventObject);
 			try{
 				this.getActiveTool().keyPress(eventObject);
 			} catch(e){
@@ -103,7 +108,7 @@ class CanvasController{
 			if (eventObject.keyCode == KeyEvent.DOM_VK_SHIFT) {
 				this.shiftKeyEnabled = false;
 			}
-			this.canvas.keyUp(eventObject);
+			events.triggerKeyUp(eventObject);
 			try{
 				this.getActiveTool().keyUp(eventObject);
 			} catch(e){
@@ -114,7 +119,7 @@ class CanvasController{
 	addTool(tool: CanvasTool){
 		this.tools[tool.getId()] = tool;
 	}
-	getActiveTool(): CanvasTool | null{
+	getActiveTool(): CanvasTool | null {
 		if (this.shiftKeyEnabled) return this.dummyTool;
 		for (var tool in this.tools){
 			if (this.tools[tool].isEnabled()){
@@ -153,11 +158,11 @@ class CanvasController{
 			x = mouseEvent.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
 			y = mouseEvent.clientY + document.body.scrollTop + document.documentElement.scrollTop;
 		}
-		x -= this.canvasHTML.offsetLeft;
-		y -= this.canvasHTML.offsetTop;
+		x -= this.canvas.canvasHTML.offsetLeft;
+		y -= this.canvas.canvasHTML.offsetTop;
 		// are we inside a scrollable div?
 		// TODO: should this be handled by MovableTool? (it know there is a container)
-		var parent = $(this.canvasHTML).parent();
+		var parent = this.canvas.$canvas.parent();
 		if (parent){
 			x += parent.scrollLeft();
 			y += parent.scrollTop();
